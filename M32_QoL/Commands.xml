@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<commands>
+    <command ID="M32QoL_ZoneTrade" DisplayText="Trade with Zone Merchants"
+             Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
+        <keyboardBind Modifier="ctrl" Key="t"/>
+    </command>
+</commands>

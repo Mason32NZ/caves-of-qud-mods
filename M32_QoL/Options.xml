@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<options>
+    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="Enable Zone Trade"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
+        <helptext>When enabled, press Ctrl+T to trade with all friendly merchants in the current zone at once.</helptext>
+    </option>
+</options>
