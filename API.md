@@ -17,6 +17,7 @@ Compiled from: the official wiki (wiki.cavesofqud.com/wiki/Modding:Overview and 
 - `GameObjectFactory.Factory.CreateObject("Base_NPC")` — **"Base_NPC" is not a valid blueprint**
 - `[HasOptionFlagUpdate]` must be on a **static** class
 - Without `WantEvent` returning true for an event, `HandleEvent` will **never** be called
+- `GameObject.IsModified()` **does not exist** — use `HasPart<Modification>()` or `HasPart<ModBase>()` instead
 
 ---
 
@@ -1215,22 +1216,37 @@ TradeUI.DoVendorRecharge(item, trader);
 
 ### TradeEntry
 
-**IMPORTANT**: TradeEntry constructor/fields are not directly accessible. Use reflection to create instances.
+**IMPORTANT**: TradeEntry constructor/fields are not directly accessible. Use reflection to create instances and access fields.
 
 ```csharp
-// CORRECT - Use reflection to discover constructor
+// CORRECT - TradeEntry structure (from decompiled code)
+public class TradeEntry
+{
+    public GameObject GO;  // The actual item GameObject
+    public string CategoryName = "";
+    // Note: No 'count' field - item count comes from GameObject.Count
+}
+
+// CORRECT - Use reflection to access the GO field
+FieldInfo goField = typeof(TradeEntry).GetField("GO", 
+    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+GameObject item = goField?.GetValue(entry) as GameObject;
+
+// CORRECT - Create TradeEntry via reflection
 Type tradeEntryType = typeof(TradeEntry);
 ConstructorInfo ctor = tradeEntryType.GetConstructor(new[] { typeof(GameObject) });
 TradeEntry entry = (TradeEntry)ctor.Invoke(new object[] { item });
 
-// Alternative: Create and set fields via reflection
-ConstructorInfo ctor = tradeEntryType.GetConstructor(Type.EmptyTypes);
-TradeEntry entry = (TradeEntry)ctor.Invoke(null);
-FieldInfo objField = tradeEntryType.GetField("obj", BindingFlags.Public | BindingFlags.Instance);
-objField?.SetValue(entry, item);
+// WRONG - Field name is 'GO', not 'obj'
+FieldInfo objField = typeof(TradeEntry).GetField("obj", ...);  // Returns null!
+GameObject item = entry.GO;  // CS1061: 'TradeEntry' does not contain 'GO'
+
+// WRONG - There is no 'count' field
+FieldInfo countField = typeof(TradeEntry).GetField("count", ...);  // Returns null!
+int count = entry.count;  // CS1061: 'TradeEntry' does not contain 'count'
 ```
 
-**Note**: TradeEntry appears to be an internal type with limited public API. The safest approach is to let TradeUI.GetObjects() populate the list rather than creating TradeEntry objects manually.
+**Note**: TradeEntry wraps a GameObject directly. Item counts come from `GameObject.Count`, not from TradeEntry. The safest approach is to let TradeUI.GetObjects() populate the list rather than creating TradeEntry objects manually.
 
 ### Opening Trade
 
@@ -1277,6 +1293,68 @@ foreach (var merchant in merchants)
 // Player gets access to best services + consolidated inventory
 TradeUI.ShowTradeScreen(bestMerchant, 1f, TradeUI.TradeScreenMode.Trade);
 ```
+
+### Multi-Merchant Trade: Post-Trade Reconciliation
+
+When consolidating inventory from multiple merchants, rare edge cases can cause items to end up with the wrong merchant. Post-trade reconciliation fixes this:
+
+```csharp
+// 1. Before trade: Capture snapshot of all merchant inventories
+Dictionary<string, string> itemOwnerMap = new Dictionary<string, string>(); // item ID -> merchant ID
+
+foreach (GameObject merchant in merchants)
+{
+    Inventory inv = merchant.GetPart<Inventory>();
+    foreach (GameObject item in inv.GetObjectsDirect())
+    {
+        itemOwnerMap[item.ID] = merchant.ID;
+    }
+}
+
+// 2. During trade: Player buys/sells normally through consolidated UI
+
+// 3. After trade: Reconcile - only fix items that ended up with WRONG merchant
+[HarmonyPostfix]
+public static void Postfix()
+{
+    foreach (var kvp in itemOwnerMap)
+    {
+        string itemId = kvp.Key;
+        string originalOwnerId = kvp.Value;
+        
+        GameObject item = GameObject.findById(itemId);
+        if (item == null) continue; // Item was destroyed/consumed/bought by player
+        
+        GameObject currentOwner = item.InInventory;
+        if (currentOwner == null) continue; // Item not in inventory (ground, container, etc.)
+        
+        // Skip if item is with player (they bought it legitimately)
+        if (currentOwner.IsPlayer()) continue;
+        
+        // Skip if item is already with original owner
+        if (currentOwner.ID == originalOwnerId) continue;
+        
+        // Only fix if item ended up with DIFFERENT merchant (rare edge case)
+        if (IsMerchant(currentOwner))
+        {
+            GameObject originalOwner = FindMerchantById(originalOwnerId);
+            if (originalOwner != null)
+            {
+                currentOwner.GetPart<Inventory>().RemoveObject(item, null);
+                originalOwner.GetPart<Inventory>().AddObject(item, null);
+            }
+        }
+    }
+}
+```
+
+**Key Points:**
+- Track item ownership with `GameObject.ID` (unique per instance)
+- Find current owner with `item.InInventory`
+- **NEVER move items from player** - they bought them legitimately
+- Only fix items that somehow ended up with the wrong merchant (rare)
+- Use `GameObject.findById()` to locate items after trade
+- Does NOT restore pre-trade quantities (prevents duping exploits)
 
 ### TradeScreen — Detect Close
 
@@ -1481,6 +1559,10 @@ int volume = vol.Volume;
 string liquidName = vol.GetLiquidName();
 double valuePerDram = vol.GetLiquidExtrinsicValuePerDram();
 double weightPerDram = vol.GetLiquidWeightPerDram();
+
+// ComponentLiquids is a Dictionary<string, int> - maps liquid ID to volume
+Dictionary<string, int> components = vol.ComponentLiquids;
+// e.g., { "water": 50, "wine": 30 } for a mixture
 
 vol.ProcessContact(target, Initial: true, Poured: true, PouredBy: who, ContactVolume: 1);
 vol.PourIntoCell(who, cell, 1, ref requestExit, CanPourOn: true);

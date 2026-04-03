@@ -213,3 +213,12 @@ When working on the M32's QoL Caves of Qud mod:
 - Use comments like `// CORRECT` and `// WRONG` to make it obvious
 - This helps future agents avoid the same mistakes
 - Example: If you discover TradeEntry uses constructor parameters not property initializers, add that to the Trade API section
+
+### Harmony / Decompilation
+- **You can use the `ilspy` tool to decompile game EXEs or DLLs** when working on Harmony patches
+- Use ILSpy to inspect the game's internal methods, classes, and logic to understand what to patch
+- This is especially useful when you need to:
+  - Find the exact method signature to target with a Harmony patch
+  - Understand the internal logic of a game system before patching it
+  - Debug why a patch isn't working as expected
+- Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "decompiled.cs"`

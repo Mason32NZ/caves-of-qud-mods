@@ -26,6 +26,9 @@
 - [x] Fix merchant detection to only find creatures (not furniture like dressers)
 - [x] Change to use TradeUI.ShowTradeScreen() instead of CommandTrade event
 - [x] Select primary merchant without vendor services (identify/repair) to avoid vendor popup
+- [x] Sort consolidated merchant items alphabetically by name
+- [x] Implement Approach 3: Post-trade Reconciliation to return items to correct owners after trade
+- [x] Fix UI synchronization issue: Force-close trade UI immediately after TRADE button click to prevent showing stale data
 - [ ] Selling to best price merchant (deferred to v1.1)
 - [ ] Testing and bug fixes
 
@@ -152,18 +155,141 @@ public class M32_ZoneTradePart : IScribedPart
 - Checks hostility
 - Returns `List<GameObject>` of valid merchants
 
-#### CreateVirtualMerchant()
-- Creates temporary GameObject
-- Adds Commerce part
-- Populates inventory from all friendly merchants
-- Returns virtual merchant for trading
+#### CaptureInventorySnapshot()
+- Records all merchant inventories before trade
+- Maps each item ID to its owning merchant
+- Stores item counts for reference
+- Used for post-trade reconciliation
 
 #### OpenZoneTrade()
 - Checks if feature enabled
 - Finds merchants
 - Shows error if none found
-- Creates virtual merchant
-- Fires `CommandTrade` event with virtual merchant as target
+- Captures inventory snapshot for reconciliation
+- Opens trade with primary merchant (best services)
+- Uses `TradeUI.ShowTradeScreen()` for trade
+
+#### ReconcileMerchantInventories() (Approach 3)
+- Runs after trade closes
+- Compares current item ownership with pre-trade snapshot
+- Moves items from wrong merchants back to original owners
+- Preserves items bought by player (owned by player, not moved)
+- Logs all movements for debugging
+
+### Hybrid Approach: Player Inventory Comparison + Virtual Items
+
+This is the current working approach that combines virtual items for display with player inventory tracking for accurate purchase detection:
+
+1. **Before Trade**: 
+   - Capture snapshot of all merchant inventories (item IDs and counts)
+   - Capture snapshot of player inventory (blueprint → count)
+   - Create VirtualItemRegistry to track mappings
+
+2. **During Trade**: 
+   - Create virtual GameObjects representing merged stacks
+   - Player trades with virtual items
+   - Virtual items are destroyed by game after trade (normal behavior)
+
+3. **After Trade**: 
+   - Compare current player inventory to pre-trade snapshot
+   - Calculate: `purchased = currentCount - preTradeCount` for each blueprint
+   - Use VirtualItemRegistry to determine which merchant items to deduct
+   - Deduct in FIFO order from source merchants
+
+**Example:**
+```
+Before Trade:
+  Merchant A: 100 shotgun shells (ID: A1)
+  Merchant B: 127 shotgun shells (ID: B1)
+  Player: 0 shotgun shells
+
+Virtual Item Created: "shotgun shell x227" (represents A1+B1)
+
+Player buys 50 shells:
+  Virtual item destroyed by game
+  Player now has: 50 shotgun shells
+
+Cleanup detects:
+  - Player purchased 50 shotgun shells (50 - 0 = 50)
+  - VirtualItemRegistry shows blueprint "ShotgunShell" came from A1+B1
+  - Deduct in FIFO order: 50 from A1
+  
+Result:
+  Merchant A: 50 shells (100 - 50)
+  Merchant B: 127 shells (unchanged)
+  Player: 50 shells ✓
+```
+
+**Key Components:**
+- `VirtualItemData` class - Stores virtual item ID, blueprint, original count, and source item mappings
+- `VirtualItemRegistry` - Persists even after GameObjects destroyed
+- `PlayerInventorySnapshot` - Tracks player inventory before trade
+- `CleanupVirtualItems()` - Uses player inventory comparison to detect purchases
+
+**Benefits:**
+- Shows merged display (e.g., "x227" instead of separate stacks)
+- Accurate purchase tracking via player inventory comparison
+- No reliance on destroyed virtual objects
+- Properly deducts from correct merchants in FIFO order
+- Prevents item duplication
+
+**Notes:**
+- Virtual items are destroyed by game during trade (normal behavior)
+- Purchase tracking relies on comparing player inventory before/after
+- Works correctly even if virtual items don't exist at cleanup time
+
+### UI Synchronization Fix: Force-Close After Trade
+
+**Problem:** After clicking the TRADE button, the game calls `ClearAndSetupTradeUI()` which refreshes the UI. This triggers our `TradeUI.GetObjects` patch, recreating virtual items that were just destroyed, causing purchased items to still appear available (until the UI closes a moment later).
+
+**Failed Attempts:**
+1. Call-counter approach - `ClearAndSetupTradeUI()` is called multiple times during initial setup
+2. `UpdateViewFromData` patch - reflection to get TradeScreen instance was failing
+
+**Solution:** Patch `TradeUI.PerformOffer` to change the return value from REFRESH/TOP to CLOSE:
+- When `PerformOffer` returns `REFRESH` or `TOP`, the game calls `ClearAndSetupTradeUI()` to refresh the UI
+- By changing the return value to `CLOSE`, the game naturally closes the trade screen instead
+- This works with the game's natural flow and doesn't require complex reflection
+
+**Why This Works:**
+- `PerformOffer` is a static method that's easier to patch than async void methods
+- The return value directly controls what happens after a trade
+- `CLOSE` triggers `Hide()` which runs our cleanup code
+- No need to manually call `Hide()` via reflection
+
+**Flow:**
+```
+User opens Zone Trade
+  ↓
+TradeScreen opens normally with consolidated merchant items
+  ↓
+User selects items and clicks TRADE
+  ↓
+TradeUI.PerformOffer() executes trade → returns REFRESH (normally)
+  ↓
+PATCH: Changes return value to CLOSE
+  ↓
+TradeScreen.HandleMenuOption sees CLOSE → calls Hide()
+  ↓
+TradeScreen.Hide() runs → triggers cleanup patches
+  ↓
+CleanupVirtualItems() reconciles merchant inventories
+  ↓
+ReconcileMerchantInventories() fixes any misplaced items
+  ↓
+Zone Trade state reset
+```
+
+**Implementation:**
+- `TradeUI_PerformOffer_Patch`: Postfix patch that changes OfferStatus from REFRESH/TOP to CLOSE when in Zone Trade mode
+
+**Benefits:**
+- Patches a static method (much more reliable than async void)
+- Works with the game's natural control flow
+- No reflection required to close the screen
+- Immediate feedback to player that trade completed
+- Cleanup still runs correctly via Hide() patch
+- Minimal intrusion - only affects Zone Trade, not normal trading
 
 ### Error Handling
 - No friendly merchants: Show popup "There are no friendly merchants in this area."
@@ -190,4 +316,8 @@ public class M32_ZoneTradePart : IScribedPart
 - [ ] Merchants on different levels excluded
 - [ ] Toggle disables feature
 - [ ] Works on new games
+- [ ] Post-trade reconciliation moves items to correct owners
+- [ ] Items bought by player stay with player
+- [ ] Reconciliation logs show correct item movements
+- [ ] Trade UI closes immediately after clicking TRADE (no refresh showing stale data)
 - [ ] Works on loaded saves
