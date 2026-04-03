@@ -46,7 +46,6 @@
 ### Future Features
 - [ ] Auto-loot feature
 - [ ] Quick travel enhancements
-- [ ] Inventory sorting
 
 ## Overview
 A Caves of Qud quality-of-life mod featuring the **Zone Trade** system for consolidated merchant trading.
@@ -353,6 +352,7 @@ Same rules as Zone Trade:
 - **Only LIQUID containers can stack** (if empty). Non-liquid containers (chests, bags, etc.) NEVER stack.
 - Same Number property (for numbered items like scrolls)
 - Same visual properties (ColorString, DetailColor, Tile, RenderString)
+- Items are sorted alphabetically before grouping to ensure consistent merge behavior
 
 #### Implementation Details
 - **Silent operation**: No UI feedback to player
@@ -380,6 +380,7 @@ Same rules as Zone Trade:
 - [ ] Items with different modifications do NOT stack
 - [ ] Data Disks are not stacked
 - [ ] Unidentified artifacts are not stacked
+- [ ] Items are sorted alphabetically before stacking
 - [ ] Toggle disables feature
 - [ ] No errors in Player.log
 - [ ] Works with loaded saves

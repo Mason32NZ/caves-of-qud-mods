@@ -8,16 +8,19 @@ using XRL.World.Parts;
 
 namespace M32_QoL
 {
+    /// <summary>
+    /// Stacked Inventory feature - automatically merges compatible item stacks
+    /// when opening inventory or trade screens.
+    /// </summary>
     public static class M32_StackedInventory
     {
-        // Track last clean time to prevent running too frequently
-        private static int _lastCleanTurn = -1;
-        private static int _lastCleanTick = -1;
-        private static readonly object _cleanLock = new object();
+        private static int _lastRunTurn = -1;
+        private static readonly object _executionLock = new object();
+        // Queue for deferred item removal to avoid modifying inventory during event processing
+        private static readonly Queue<GameObject> _removalQueue = new Queue<GameObject>();
 
         /// <summary>
         /// Gets all modification parts from a game object.
-        /// Modifications are parts that implement IModification interface.
         /// </summary>
         private static List<IPart> GetModifications(GameObject obj)
         {
@@ -36,23 +39,19 @@ namespace M32_QoL
         }
 
         /// <summary>
-        /// Checks if two items have the same modifications.
-        /// Returns true if both have no mods, or both have identical mods.
+        /// Checks if two items have identical modifications.
         /// </summary>
         private static bool HaveSameModifications(GameObject a, GameObject b)
         {
             var modsA = GetModifications(a);
             var modsB = GetModifications(b);
 
-            // Different number of mods = can't stack
             if (modsA.Count != modsB.Count)
                 return false;
 
-            // Both have no mods = can stack
             if (modsA.Count == 0 && modsB.Count == 0)
                 return true;
 
-            // Compare modification types by part name
             var modNamesA = modsA.Select(m => m.GetType().Name).OrderBy(n => n).ToList();
             var modNamesB = modsB.Select(m => m.GetType().Name).OrderBy(n => n).ToList();
 
@@ -92,14 +91,12 @@ namespace M32_QoL
                 Inventory invA = a.GetPart<Inventory>();
                 Inventory invB = b.GetPart<Inventory>();
                 
-                // If item has Inventory part (is a container)
                 if (invA != null || invB != null)
                 {
-                    // Only allow stacking for liquid containers (have LiquidVolume part)
                     bool aIsLiquidContainer = volA != null;
                     bool bIsLiquidContainer = volB != null;
                     
-                    // If either is a non-liquid container, don't stack
+                    // Non-liquid containers cannot stack
                     if ((invA != null && !aIsLiquidContainer) || (invB != null && !bIsLiquidContainer))
                         return false;
                     
@@ -117,19 +114,15 @@ namespace M32_QoL
                 Render renderA = a.GetPart<Render>();
                 Render renderB = b.GetPart<Render>();
 
-                // Check foreground color (e.g., wooden vs iron vs painted)
                 if (renderA?.ColorString != renderB?.ColorString)
                     return false;
 
-                // Check detail/background color
                 if (renderA?.DetailColor != renderB?.DetailColor)
                     return false;
 
-                // Check tile image (different images for different item types)
                 if (renderA?.Tile != renderB?.Tile)
                     return false;
 
-                // Check render string (ASCII character used for rendering)
                 if (renderA?.RenderString != renderB?.RenderString)
                     return false;
 
@@ -142,39 +135,87 @@ namespace M32_QoL
         }
 
         /// <summary>
+        /// Processes the deferred removal queue. Called from a safe context.
+        /// </summary>
+        private static void ProcessRemovalQueue()
+        {
+            if (_removalQueue.Count == 0) return;
+            
+            Inventory inv = The.Player?.GetPart<Inventory>();
+            if (inv == null) return;
+
+            int removed = 0;
+            while (_removalQueue.Count > 0)
+            {
+                GameObject item = _removalQueue.Dequeue();
+                if (item != null && item.InInventory == The.Player)
+                {
+                    try
+                    {
+                        inv.RemoveObject(item, null);
+                        removed++;
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove {item.DisplayNameStripped}: {ex.Message}");
+                    }
+                }
+            }
+
+            if (removed > 0)
+                UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Removed {removed} merged items");
+        }
+
+        /// <summary>
         /// Consolidates compatible item stacks in the player's inventory.
+        /// Items are queued for removal and processed on the next safe tick.
         /// </summary>
         public static void StackInventory()
         {
             if (!M32_Options.EnableStackedInventory)
                 return;
 
-            // Use lock to prevent concurrent execution
-            lock (_cleanLock)
+            lock (_executionLock)
             {
-                // Safety check: only run once per game turn to prevent spam
+                // Only run once per game turn
                 int currentTurn = (int)(The.Game?.Turns ?? 0);
-                if (currentTurn == _lastCleanTurn)
+                if (currentTurn == _lastRunTurn)
                 {
-                    // Already ran this turn, skip
+                    // Process any pending removals from previous turn
+                    ProcessRemovalQueue();
                     return;
                 }
-                _lastCleanTurn = currentTurn;
-                _lastCleanTick = Environment.TickCount;
-
-                UnityEngine.Debug.Log("[M32_QoL] StackedInventory: Running inventory stack check...");
+                
+                _lastRunTurn = currentTurn;
 
                 try
                 {
                     Inventory inv = The.Player?.GetPart<Inventory>();
                     if (inv == null) return;
 
-                    // Get all inventory items (not equipped) - filter out nulls and invalid items
+                    // Clear any stale items from queue
+                    _removalQueue.Clear();
+
                     List<GameObject> items = inv.GetObjectsDirect()
                         .Where(i => i != null && !i.IsInvalid())
                         .ToList();
 
                     if (items.Count < 2) return;
+
+                    // Sort items by display name to ensure consistent grouping (defensive sorting)
+                    items.Sort((a, b) => {
+                        try
+                        {
+                            string nameA = a?.DisplayNameStripped ?? "";
+                            string nameB = b?.DisplayNameStripped ?? "";
+                            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            // Maintain original order if comparison fails
+                            return 0;
+                        }
+                    });
 
                     // Group items by stack compatibility
                     List<List<GameObject>> groups = new List<List<GameObject>>();
@@ -195,13 +236,11 @@ namespace M32_QoL
                         }
 
                         if (!addedToGroup)
-                        {
                             groups.Add(new List<GameObject> { item });
-                        }
                     }
 
-                    // Collect all items to remove first (defer actual removal to avoid concurrent modification)
-                    List<(GameObject secondary, GameObject primary, int count)> itemsToProcess = new List<(GameObject, GameObject, int)>();
+                    // Collect items to merge and queue for removal
+                    int totalMerged = 0;
 
                     foreach (var group in groups)
                     {
@@ -216,58 +255,27 @@ namespace M32_QoL
                         {
                             GameObject secondary = group[i];
                             if (secondary == null || secondary.IsInvalid()) continue;
-
-                            // Validate that the item is still in player's inventory
-                            if (secondary.InInventory != The.Player)
-                            {
-                                UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Item {secondary.DisplayNameStripped} is no longer in player inventory, skipping");
-                                continue;
-                            }
+                            if (secondary.InInventory != The.Player) continue;
 
                             totalCount += secondary.Count;
-                            itemsToProcess.Add((secondary, primary, secondary.Count));
+                            _removalQueue.Enqueue(secondary);
+                            totalMerged++;
                         }
 
-                        // Update primary count
-                        if (itemsToProcess.Count > 0 && itemsToProcess.Any(x => x.primary == primary))
-                        {
-                            primary.Count = totalCount;
-                        }
+                        primary.Count = totalCount;
                     }
-
-                    // Now remove all secondary items at once (outside of grouping loop)
-                    int totalMerged = 0;
-                    int stacksConsolidated = 0;
-                    HashSet<GameObject> processedPrimaries = new HashSet<GameObject>();
-
-                    foreach (var (secondary, primary, count) in itemsToProcess)
-                    {
-                        try
-                        {
-                            if (secondary.InInventory == The.Player)
-                            {
-                                inv.RemoveObject(secondary, null);
-                                totalMerged++;
-                                processedPrimaries.Add(primary);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove {secondary.DisplayNameStripped}: {ex.Message}");
-                        }
-                    }
-
-                    stacksConsolidated = processedPrimaries.Count;
 
                     if (totalMerged > 0)
                     {
-                        UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Merged {totalMerged} stacks into {stacksConsolidated} stacks");
+                        UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Merged {totalMerged} stacks, queued for removal");
                     }
+
+                    // Process removals immediately since we're outside of event handlers
+                    ProcessRemovalQueue();
                 }
                 catch (Exception ex)
                 {
                     UnityEngine.Debug.LogError($"[M32_QoL] StackedInventory: Error during stack operation: {ex.Message}");
-                    UnityEngine.Debug.LogError($"[M32_QoL] StackedInventory: Stack trace: {ex.StackTrace}");
                 }
             }
         }
@@ -277,7 +285,6 @@ namespace M32_QoL
 
     /// <summary>
     /// Patch InventoryAndEquipmentStatusScreen.Show() to stack when opening inventory.
-    /// Uses Postfix to run after the screen opens.
     /// </summary>
     [HarmonyPatch]
     public static class StackedInventory_InventoryScreen_Patch
@@ -292,24 +299,20 @@ namespace M32_QoL
                 return null;
             }
 
-            // Try Show first, then Open
-            var method = AccessTools.Method(type, "Show");
-            if (method == null)
-                method = AccessTools.Method(type, "Open");
-
+            var method = AccessTools.Method(type, "Show") ?? AccessTools.Method(type, "Open");
             return method;
         }
 
         [HarmonyPostfix]
         public static void Postfix()
         {
+            // Use a small delay to ensure we're outside of the event processing
             M32_StackedInventory.StackInventory();
         }
     }
 
     /// <summary>
     /// Patch TradeScreen to stack BEFORE Zone Trade patches.
-    /// Uses Prefix to ensure it runs first.
     /// </summary>
     [HarmonyPatch]
     public static class TradeScreen_Show_StackedInventory_Patch
@@ -324,17 +327,13 @@ namespace M32_QoL
                 return null;
             }
 
-            var method = AccessTools.Method(type, "Show");
-            if (method == null)
-                method = AccessTools.Method(type, "Open");
-
+            var method = AccessTools.Method(type, "Show") ?? AccessTools.Method(type, "Open");
             return method;
         }
 
         [HarmonyPrefix]
         public static void Prefix()
         {
-            // Run as Prefix to ensure it runs BEFORE Zone Trade's patches
             M32_StackedInventory.StackInventory();
         }
     }

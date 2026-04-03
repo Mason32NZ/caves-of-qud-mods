@@ -1070,6 +1070,82 @@ public interface IModification : IPart
 
 ---
 
+## Safe Inventory Sorting
+
+**CRITICAL**: `Inventory.Objects` is a direct reference to the internal list. Clearing and rebuilding it will break other mods iterating over inventory (causing `ArgumentOutOfRangeException`).
+
+### CORRECT: In-Place Sorting (Safe)
+
+Use `List<T>.Sort()` to reorder items without clearing the list:
+
+```csharp
+/// <summary>
+/// Sorts inventory alphabetically A-Z using safe in-place sorting.
+/// Compatible with other inventory mods.
+/// </summary>
+public static void SortInventoryAlphabetically(GameObject owner)
+{
+    if (owner == null) return;
+    
+    Inventory inv = owner.GetPart<Inventory>();
+    if (inv == null) return;
+    
+    List<GameObject> objects = inv.Objects;
+    if (objects == null || objects.Count < 2) return;
+    
+    try
+    {
+        // Sort in-place using List<T>.Sort() with comparison
+        // This reorders elements WITHOUT clearing the list
+        objects.Sort((a, b) =>
+        {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+            
+            string nameA = a.DisplayNameStripped ?? "";
+            string nameB = b.DisplayNameStripped ?? "";
+            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+    catch (Exception ex)
+    {
+        Debug.LogError($"Failed to sort inventory: {ex.Message}");
+    }
+}
+```
+
+### WRONG: Clear and Rebuild (Unsafe)
+
+**NEVER DO THIS** - it breaks other mods:
+
+```csharp
+// WRONG - Will cause ArgumentOutOfRangeException in other mods!
+List<GameObject> sorted = inv.Objects.OrderBy(x => x.DisplayNameStripped).ToList();
+inv.Objects.Clear();  // DANGEROUS!
+foreach (var item in sorted)
+{
+    inv.Objects.Add(item);  // Other mods iterating will crash!
+}
+```
+
+### Key Differences
+
+| Approach | Method | Safe? | Description |
+|----------|--------|-------|-------------|
+| **Safe** | `List.Sort()` | ✅ Yes | Reorders in-place, list reference unchanged |
+| **Unsafe** | `Clear()` + `Add()` | ❌ No | Breaks existing iterators in other mods |
+| **Safe** | Index assignment `objects[i] = item` | ✅ Yes | Replaces elements without structural changes |
+
+### Why In-Place Sorting Works
+
+- `List<T>.Sort()` only swaps element positions within the existing list
+- The list reference (`inv.Objects`) never changes
+- Other mods holding references to the list continue to work
+- Iterators in other mods see reordered elements but don't crash
+
+---
+
 ## Activated Abilities
 
 ```csharp

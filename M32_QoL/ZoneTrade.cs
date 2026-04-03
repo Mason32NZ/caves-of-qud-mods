@@ -754,12 +754,21 @@ namespace M32_QoL
                         TradeUI.GetObjects(merchant, allEntries, Other, CostMultiple);
                     }
 
+                    // Sort entries alphabetically by display name (defensive sorting)
                     allEntries.Sort((a, b) => {
-                        GameObject objA = GetTradeEntryObject(a);
-                        GameObject objB = GetTradeEntryObject(b);
-                        string nameA = objA?.DisplayNameStripped ?? "";
-                        string nameB = objB?.DisplayNameStripped ?? "";
-                        return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
+                        try
+                        {
+                            GameObject objA = GetTradeEntryObject(a);
+                            GameObject objB = GetTradeEntryObject(b);
+                            string nameA = objA?.DisplayNameStripped ?? "";
+                            string nameB = objB?.DisplayNameStripped ?? "";
+                            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            // Maintain original order if comparison fails
+                            return 0;
+                        }
                     });
 
                     List<TradeEntry> mergedEntries = MergeEntries(allEntries, Other);
