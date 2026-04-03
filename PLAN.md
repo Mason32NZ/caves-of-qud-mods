@@ -246,24 +246,15 @@ Result:
 1. Call-counter approach - `ClearAndSetupTradeUI()` is called multiple times during initial setup
 2. `UpdateViewFromData` patch - reflection to get TradeScreen instance was failing
 
-**Solution:** Patch `TradeUI.PerformOffer` to change the return value from REFRESH/TOP to CLOSE:
-- When `PerformOffer` returns `REFRESH` or `TOP`, the game calls `ClearAndSetupTradeUI()` to refresh the UI
-- By changing the return value to `CLOSE`, the game naturally closes the trade screen instead
-- This works with the game's natural flow and doesn't require complex reflection
-
-**Why This Works:**
-- `PerformOffer` is a static method that's easier to patch than async void methods
-- The return value directly controls what happens after a trade
-- `CLOSE` triggers `Hide()` which runs our cleanup code
-- No need to manually call `Hide()` via reflection
+**Solution:** Patch `TradeUI.PerformOffer` to change the return value from REFRESH/TOP to CLOSE.
 
 **Flow:**
 ```
 User opens Zone Trade
   ↓
-TradeScreen opens normally with consolidated merchant items
+TradeScreen opens with consolidated merchant items
   ↓
-User selects items and clicks TRADE
+User clicks TRADE
   ↓
 TradeUI.PerformOffer() executes trade → returns REFRESH (normally)
   ↓
@@ -271,25 +262,12 @@ PATCH: Changes return value to CLOSE
   ↓
 TradeScreen.HandleMenuOption sees CLOSE → calls Hide()
   ↓
-TradeScreen.Hide() runs → triggers cleanup patches
-  ↓
 CleanupVirtualItems() reconciles merchant inventories
-  ↓
-ReconcileMerchantInventories() fixes any misplaced items
   ↓
 Zone Trade state reset
 ```
 
-**Implementation:**
-- `TradeUI_PerformOffer_Patch`: Postfix patch that changes OfferStatus from REFRESH/TOP to CLOSE when in Zone Trade mode
-
-**Benefits:**
-- Patches a static method (much more reliable than async void)
-- Works with the game's natural control flow
-- No reflection required to close the screen
-- Immediate feedback to player that trade completed
-- Cleanup still runs correctly via Hide() patch
-- Minimal intrusion - only affects Zone Trade, not normal trading
+See `API.md` section "TradeScreen — Force Close After Trade" for implementation details.
 
 ### Error Handling
 - No friendly merchants: Show popup "There are no friendly merchants in this area."
@@ -316,21 +294,7 @@ Zone Trade state reset
 
 4. **Virtual items are destroyed during trade**: The game destroys virtual GameObjects during the trade process (normal behavior). Any tracking must use persistent data structures (like `VirtualItemRegistry`) that survive object destruction.
 
-### Working Solution for Trade UI Sync
-
-The working approach patches `TradeUI.PerformOffer` to change the return value:
-```csharp
-[HarmonyPostfix]
-public static void Postfix(ref TradeUI.OfferStatus __result)
-{
-    if (!M32_ZoneTradeState.IsZoneTrade) return;
-    
-    if (__result == TradeUI.OfferStatus.REFRESH || __result == TradeUI.OfferStatus.TOP)
-    {
-        __result = TradeUI.OfferStatus.CLOSE;
-    }
-}
-```
+See `API.md` section "TradeScreen — Force Close After Trade" for the full implementation pattern.
 
 ## Testing Checklist
 - [x] Mod loads without errors

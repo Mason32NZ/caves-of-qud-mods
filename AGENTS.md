@@ -185,6 +185,16 @@ it('should return discounted price when coupon is applied', () => {
 - Commit messages: use conventional commits format
 - Feature branches: `feature/description` or `fix/description`
 
+## Temp Folder Usage
+
+- **You can freely use the `temp/` folder** for any temporary files, working data, or outputs that should not be committed to version control
+- The `temp/` folder is already in `.gitignore` and will not be tracked
+- Common uses for the temp folder:
+  - Decompiled game files from `ilspy` → `temp/decompiled/`
+  - Intermediate build artifacts
+  - Test data or scratch files
+  - Debugging outputs
+
 ## M32's QoL Mod - Agent Guidelines
 
 When working on the M32's QoL Caves of Qud mod:
@@ -214,6 +224,38 @@ When working on the M32's QoL Caves of Qud mod:
 - This helps future agents avoid the same mistakes
 - Example: If you discover TradeEntry uses constructor parameters not property initializers, add that to the Trade API section
 
+### Separation of Concerns: PLAN.md vs API.md
+
+To avoid duplication and keep documentation organized, follow this separation:
+
+**`PLAN.md`** — Project-specific implementation details:
+- TODO lists and task tracking
+- Feature specifications and behavior descriptions
+- Project architecture and file organization
+- Testing checklists
+- High-level implementation approach (pseudocode/diagrams)
+- Lessons learned at the conceptual level
+- **Cross-references to API.md** for reusable code patterns
+
+**`API.md`** — General Caves of Qud modding API reference:
+- Reusable code patterns and examples
+- API documentation for common operations
+- Working solutions to common problems
+- Critical pitfalls and best practices
+- Complete working code examples that can be copied/pasted
+
+**When adding content:**
+- If it's a **general API pattern** that could help other mods → put it in `API.md`
+- If it's **specific to this mod's implementation** → put it in `PLAN.md`
+- If `PLAN.md` needs a code example that's already in `API.md` → use a cross-reference like:  
+  "See `API.md` section 'TradeScreen — Force Close After Trade' for implementation"
+- **Never duplicate** large code blocks between files — this creates maintenance burden
+
+**Examples:**
+- ✅ PLAN.md: "We use the pattern described in API.md's 'Multi-Merchant Trade' section"
+- ✅ API.md: Full Harmony patch implementation with complete code example
+- ❌ PLAN.md: Copy-pasting the full Harmony patch code that's already in API.md
+
 ### Harmony / Decompilation
 - **You can use the `ilspy` tool to decompile game EXEs or DLLs** when working on Harmony patches
 - Use ILSpy to inspect the game's internal methods, classes, and logic to understand what to patch
@@ -222,3 +264,4 @@ When working on the M32's QoL Caves of Qud mod:
   - Understand the internal logic of a game system before patching it
   - Debug why a patch isn't working as expected
 - Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "decompiled.cs"`
+- **Decompiled output should go to `temp/decompiled/`** — use the project's temp folder to keep decompiled files organized and out of version control
