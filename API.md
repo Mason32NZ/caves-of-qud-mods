@@ -18,6 +18,7 @@ Compiled from: the official wiki (wiki.cavesofqud.com/wiki/Modding:Overview and 
 - `[HasOptionFlagUpdate]` must be on a **static** class
 - Without `WantEvent` returning true for an event, `HandleEvent` will **never** be called
 - `GameObject.IsModified()` **does not exist** — use `HasPart<Modification>()` or `HasPart<ModBase>()` instead
+- **Modifications are individual parts, not a single "Modification" part** — items with `ModSharp`, `ModHeavy`, etc. are separate part types implementing `IModification`. Use `PartsList.Where(p => p is IModification)` to find all mods on an item
 - **Prefer static methods over async void methods for Harmony patches** — static methods are much more reliable to patch. If you need to modify behavior in an async void method, look for the static method it calls and patch that instead (e.g., patch `PerformOffer` return value instead of trying to intercept `HandleMenuOption`)
 - **SingletonWindowBase<T>.instance reflection often fails** — use alternative approaches like modifying return values or patching the method that uses the instance
 
@@ -978,6 +979,93 @@ bool isEmpty = inv.IsEmpty();
 inv.Validate();                      // remove invalid objects
 bool backedUp = inv.TryStoreBackup();   // store to base64 property
 bool restored = inv.TryRestoreBackup(); // restore from base64 property
+```
+
+---
+
+## Item Modifications
+
+Items in Caves of Qud can have modifications (mods) like "Sharp", "Heavy", "Masterwork", etc. **Each modification is a separate part type** implementing the `IModification` interface.
+
+### Common Modification Types
+
+There are 112+ modification types, including:
+- `ModSharp` - Sharp weapon (+1 to hit)
+- `ModHeavy` - Heavy weapon (+1 damage, -1 to hit)
+- `ModPadded` - Padded armor
+- `ModMasterwork` - Masterwork quality
+- `ModGigantic` - Gigantic weapon
+- `ModExtradimensional` - Extradimensional storage
+- And many more...
+
+### Detecting Modifications
+
+```csharp
+// WRONG - "Modification" part doesn't exist
+bool hasMods = go.HasPart("Modification");  // Always false!
+
+// CORRECT - Check for IModification interface
+using System.Linq;
+
+// Get all modification parts
+List<IPart> mods = go.PartsList
+    .Where(p => p is IModification)
+    .ToList();
+
+// Check if item has any modifications
+bool hasModifications = mods.Count > 0;
+
+// Get modification type names
+List<string> modNames = mods
+    .Select(m => m.GetType().Name)
+    .ToList();
+// Result: ["ModSharp", "ModHeavy"], etc.
+```
+
+### Comparing Modifications
+
+To check if two items have the same modifications:
+
+```csharp
+public static bool HaveSameModifications(GameObject a, GameObject b)
+{
+    // Get all modifications from both items
+    var modsA = a.PartsList.Where(p => p is IModification).ToList();
+    var modsB = b.PartsList.Where(p => p is IModification).ToList();
+    
+    // Different number of mods = not the same
+    if (modsA.Count != modsB.Count)
+        return false;
+    
+    // Both have no mods = same
+    if (modsA.Count == 0 && modsB.Count == 0)
+        return true;
+    
+    // Compare modification type names
+    var namesA = modsA.Select(m => m.GetType().Name).OrderBy(n => n);
+    var namesB = modsB.Select(m => m.GetType().Name).OrderBy(n => n);
+    
+    return namesA.SequenceEqual(namesB);
+}
+
+// Usage
+if (!HaveSameModifications(itemA, itemB))
+{
+    // Items have different modifications - don't stack them!
+}
+```
+
+### IModification Interface
+
+```csharp
+public interface IModification : IPart
+{
+    string Name { get; }           // Display name of the mod
+    bool IsValid { get; }          // Whether the mod is still valid
+    bool IsTechScannable { get; }  // Shows up on tech scans
+    bool IsBioScannable { get; }   // Shows up on bio scans
+    // ... other properties
+}
 ```
 
 ---

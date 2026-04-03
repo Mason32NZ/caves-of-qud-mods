@@ -35,13 +35,6 @@ namespace M32_QoL
         }
     }
 
-    [HasOptionFlagUpdate(Prefix = "Option_M32QoL_")]
-    public static class M32_Options
-    {
-        [OptionFlag]
-        public static bool EnableZoneTrade;
-    }
-
     [PlayerMutator]
     public class M32_PlayerMutator : IPlayerMutator
     {

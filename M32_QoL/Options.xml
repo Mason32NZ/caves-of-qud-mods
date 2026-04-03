@@ -4,4 +4,8 @@
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, press Ctrl+T to trade with all friendly merchants in the current zone at once.</helptext>
     </option>
+    <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="Stacked Inventory"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
+        <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Liquid containers can stack if empty; other containers do not stack.</helptext>
+    </option>
 </options>

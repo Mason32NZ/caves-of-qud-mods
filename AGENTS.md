@@ -265,3 +265,12 @@ To avoid duplication and keep documentation organized, follow this separation:
   - Debug why a patch isn't working as expected
 - Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "decompiled.cs"`
 - **Decompiled output should go to `temp/decompiled/`** — use the project's temp folder to keep decompiled files organized and out of version control
+
+### Debugging Resources
+You have access to the following resources whenever you need them:
+- **Player.log** — Located at `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` on Windows. Check this for runtime errors, exceptions, and debug output from the game
+- **Game mod files** — You can read and search through existing mod files in the `M32_QoL/` directory
+- **Game files** — You can decompile game assemblies (Assembly-CSharp.dll, etc.) using `ilspy` to inspect internal implementations
+- **API.md** — Keep this up to date with any new patterns you discover
+
+Use these resources proactively to understand issues, verify implementation details, and find working code patterns.

@@ -32,6 +32,17 @@
 - [ ] Selling to best price merchant (deferred to v1.1)
 - [ ] Testing and bug fixes
 
+### Stacked Inventory Feature
+- [x] Create StackedInventory.cs with stack merging logic
+- [x] Add EnableStackedInventory option to Options.xml
+- [x] Add OptionFlag to M32_Options class
+- [x] Implement CanStackForMerge (reuse Zone Trade logic, only liquid containers can stack)
+- [x] Implement StackInventory method
+- [x] Add Harmony patch for InventoryScreen.Show() (Postfix)
+- [x] Add Harmony patch for TradeScreen.Show() (Prefix to run before Zone Trade)
+- [ ] Test with various item types
+- [ ] Test compatibility with Zone Trade
+
 ### Future Features
 - [ ] Auto-loot feature
 - [ ] Quick travel enhancements
@@ -92,7 +103,9 @@ M32_QoL/
 ├── manifest.json          # Mod identity and metadata
 ├── Commands.xml           # Keybind definitions
 ├── Options.xml            # Options menu entries
-├── ZoneTrade.cs           # Main implementation
+├── Options.cs             # Shared options class (M32_Options)
+├── ZoneTrade.cs           # Zone Trade implementation
+├── StackedInventory.cs    # Stacked Inventory implementation
 └── PLAN.md               # This file
 ```
 
@@ -106,6 +119,7 @@ M32_QoL/
 public static class M32_Options
 {
     [OptionFlag] public static bool EnableZoneTrade;
+        [OptionFlag] public static bool EnableStackedInventory;
 }
 ```
 
@@ -313,3 +327,60 @@ See `API.md` section "TradeScreen — Force Close After Trade" for the full impl
 - [x] Reconciliation logs show correct item movements
 - [x] Trade UI closes immediately after clicking TRADE (no refresh showing stale data)
 - [x] Works on loaded saves
+
+---
+
+## Feature: Stacked Inventory
+
+### Description
+Automatically merges compatible item stacks in the player's inventory when opening the inventory screen or trade screen. Reduces UI clutter and scrolling.
+
+### Behavior Specifications
+
+#### Trigger Conditions
+- **When enabled**: Runs automatically when player opens:
+  1. Inventory screen (via 'i' key or other methods)
+  2. Trade screen (before Zone Trade processes)
+
+#### Stack Compatibility Rules
+Same rules as Zone Trade:
+- Same blueprint (item type)
+- Not Unique items
+- Not Data Disks (unique data per disk)
+- Not Unidentified Artifacts
+- No liquid contents
+- Same modification status (both have mods or neither) - modifications compared by type (e.g., Sharp vs Heavy)
+- **Only LIQUID containers can stack** (if empty). Non-liquid containers (chests, bags, etc.) NEVER stack.
+- Same Number property (for numbered items like scrolls)
+- Same visual properties (ColorString, DetailColor, Tile, RenderString)
+
+#### Implementation Details
+- **Silent operation**: No UI feedback to player
+- **No stack limit**: Unlimited stack size
+- **Debug logging**: Logs merged stack counts to Player.log for development
+- **Execution order**: Runs as Prefix on TradeScreen (before Zone Trade)
+- **Safety**: Uses locking to prevent concurrent execution; validates items before removal
+
+### Options
+- **Toggle**: `Option_M32QoL_EnableStackedInventory` (Checkbox, Default: Yes)
+- Located in: Options Menu → Mod: M32's QoL
+- Disabling prevents automatic stacking
+
+### Keybind
+- None required (automatic feature)
+
+### Testing Checklist
+- [ ] Stacked Inventory works when opening inventory
+- [ ] Stacked Inventory runs before Zone Trade when opening trade
+- [ ] Compatible items are merged
+- [ ] Incompatible items are not merged
+- [ ] Non-liquid containers (chests, bags) do NOT stack
+- [ ] Empty liquid containers (waterskins) CAN stack
+- [ ] Liquid containers with contents do NOT stack
+- [ ] Items with different modifications do NOT stack
+- [ ] Data Disks are not stacked
+- [ ] Unidentified artifacts are not stacked
+- [ ] Toggle disables feature
+- [ ] No errors in Player.log
+- [ ] Works with loaded saves
+- [ ] Works on new games
