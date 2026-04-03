@@ -18,6 +18,8 @@ Compiled from: the official wiki (wiki.cavesofqud.com/wiki/Modding:Overview and 
 - `[HasOptionFlagUpdate]` must be on a **static** class
 - Without `WantEvent` returning true for an event, `HandleEvent` will **never** be called
 - `GameObject.IsModified()` **does not exist** — use `HasPart<Modification>()` or `HasPart<ModBase>()` instead
+- **Prefer static methods over async void methods for Harmony patches** — static methods are much more reliable to patch. If you need to modify behavior in an async void method, look for the static method it calls and patch that instead (e.g., patch `PerformOffer` return value instead of trying to intercept `HandleMenuOption`)
+- **SingletonWindowBase<T>.instance reflection often fails** — use alternative approaches like modifying return values or patching the method that uses the instance
 
 ---
 
@@ -1378,6 +1380,63 @@ public static class MyMod_TradeClosePatch
     }
 }
 ```
+
+### TradeScreen — Force Close After Trade (Prevent Stale UI)
+
+**Problem:** When modifying the trade system (e.g., merging merchant inventories), clicking TRADE causes the UI to refresh with stale data before closing. The virtual items have been destroyed, but `ClearAndSetupTradeUI()` triggers your `TradeUI.GetObjects` patch, recreating them.
+
+**Failed Approaches:**
+- Patching `ClearAndSetupTradeUI` with a call counter — called multiple times during initialization
+- Patching `HandleMenuOption` — it's `async void`, difficult to intercept correctly
+- Patching `UpdateViewFromData` and calling `Hide()` via reflection — getting the TradeScreen instance via `SingletonWindowBase` fails
+
+**Working Solution:** Patch `TradeUI.PerformOffer` return value:
+
+```csharp
+[HarmonyPatch]
+public static class TradeUI_PerformOffer_Patch
+{
+    [HarmonyTargetMethod]
+    public static MethodBase TargetMethod()
+    {
+        var tradeUIType = AccessTools.TypeByName("XRL.UI.TradeUI");
+        // Find PerformOffer with 6 parameters
+        var methods = tradeUIType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+        foreach (var method in methods)
+        {
+            if (method.Name == "PerformOffer" && method.GetParameters().Length == 6)
+                return method;
+        }
+        return null;
+    }
+
+    [HarmonyPostfix]
+    public static void Postfix(ref TradeUI.OfferStatus __result)
+    {
+        // Only apply when in your custom trade mode
+        if (!MyModState.IsZoneTrade) return;
+
+        // Change REFRESH/TOP to CLOSE to prevent UI refresh
+        if (__result == TradeUI.OfferStatus.REFRESH || __result == TradeUI.OfferStatus.TOP)
+        {
+            __result = TradeUI.OfferStatus.CLOSE;
+        }
+    }
+}
+```
+
+**Why This Works:**
+- `PerformOffer` is a **static method** — much easier to patch than async void
+- The return value directly controls what `HandleMenuOption` does next:
+  - `REFRESH`/`TOP` → calls `ClearAndSetupTradeUI()` + `UpdateViewFromData()`
+  - `CLOSE` → calls `Hide()` and exits
+- Works with the game's natural control flow
+- No reflection needed to close the screen
+
+**Key Insight:** When you need to modify game behavior, look for:
+1. **Static methods** over instance methods (easier to patch reliably)
+2. **Return value modification** over trying to call methods via reflection
+3. **Control flow points** where the game makes decisions based on return values
 
 ### Trade Value
 

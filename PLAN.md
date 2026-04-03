@@ -304,10 +304,38 @@ Zone Trade state reset
 - Each feature gets its own toggle and keybind
 - Modular design for easy expansion
 
+## Lessons Learned
+
+### Harmony Patching Best Practices
+
+1. **Static methods > Async void methods**: When you need to modify behavior, look for static methods that are easier to patch. We tried patching `TradeScreen.HandleMenuOption` (async void) multiple times before realizing we should patch `TradeUI.PerformOffer` (static) instead.
+
+2. **Return value modification > Instance method calls**: Instead of trying to call `Hide()` via reflection on a TradeScreen instance (which failed because `SingletonWindowBase<T>.instance` couldn't be found), we modified the return value of `PerformOffer` from `REFRESH` to `CLOSE`. The game naturally closed the screen based on this return value.
+
+3. **Call counters don't work for initialization**: `ClearAndSetupTradeUI()` is called multiple times during screen initialization, making call-counting unreliable for detecting post-trade state.
+
+4. **Virtual items are destroyed during trade**: The game destroys virtual GameObjects during the trade process (normal behavior). Any tracking must use persistent data structures (like `VirtualItemRegistry`) that survive object destruction.
+
+### Working Solution for Trade UI Sync
+
+The working approach patches `TradeUI.PerformOffer` to change the return value:
+```csharp
+[HarmonyPostfix]
+public static void Postfix(ref TradeUI.OfferStatus __result)
+{
+    if (!M32_ZoneTradeState.IsZoneTrade) return;
+    
+    if (__result == TradeUI.OfferStatus.REFRESH || __result == TradeUI.OfferStatus.TOP)
+    {
+        __result = TradeUI.OfferStatus.CLOSE;
+    }
+}
+```
+
 ## Testing Checklist
-- [ ] Mod loads without errors
-- [ ] Options appear in menu
-- [ ] Keybind appears and is configurable
+- [x] Mod loads without errors
+- [x] Options appear in menu
+- [x] Keybind appears and is configurable
 - [ ] Zone Trade works with single merchant
 - [ ] Zone Trade works with multiple merchants
 - [ ] Prices respect faction reputation
@@ -315,9 +343,9 @@ Zone Trade state reset
 - [ ] Hostile merchants excluded
 - [ ] Merchants on different levels excluded
 - [ ] Toggle disables feature
-- [ ] Works on new games
-- [ ] Post-trade reconciliation moves items to correct owners
-- [ ] Items bought by player stay with player
-- [ ] Reconciliation logs show correct item movements
-- [ ] Trade UI closes immediately after clicking TRADE (no refresh showing stale data)
-- [ ] Works on loaded saves
+- [x] Works on new games
+- [x] Post-trade reconciliation moves items to correct owners
+- [x] Items bought by player stay with player
+- [x] Reconciliation logs show correct item movements
+- [x] Trade UI closes immediately after clicking TRADE (no refresh showing stale data)
+- [x] Works on loaded saves
