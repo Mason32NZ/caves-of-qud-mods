@@ -139,6 +139,7 @@ namespace M32_QoL
             if (!M32_Options.EnableZoneTrade)
                 return;
 
+            AddPlayerMessage("Starting Zone Trade...");
             List<GameObject> merchants = FindFriendlyMerchants();
 
             if (merchants.Count == 0)
