@@ -15,175 +15,111 @@ The `API.md` file contains comprehensive documentation about:
 
 ---
 
-## Build / Lint / Test Commands
+## C# Code Style for Caves of Qud Mods
 
-```bash
-# Install dependencies
-npm install
+### Naming Conventions
+- **PascalCase** for: public methods, properties, classes, events
+- **camelCase with underscore prefix** for: private fields (e.g., `_lastCell`, `_counter`)
+- **ALL_CAPS** for: constants (e.g., `MAX_ITEMS`)
+- **ALL class names MUST use the `M32_` prefix** for this mod
 
-# Development server (with hot reload)
-npm run dev
+### File Organization
+- One class per file
+- File name matches class name (e.g., `M32_ZoneTradePart.cs`)
+- Feature files go in `features/` subdirectory
+- Core files (Options, HarmonyInitializer, etc.) go in root `M32_QoL/` directory
 
-# Production build
-npm run build
+### Using Statements
+Group imports in this order:
+1. `System` namespaces
+2. `XRL` namespaces (XRL, XRL.Core, XRL.World, XRL.UI, etc.)
+3. Third-party libraries (HarmonyLib)
 
-# Run all tests
-npm test
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-# Run a single test file
-npm test -- path/to/test.spec.ts
+using XRL;
+using XRL.Core;
+using XRL.World;
+using XRL.World.Parts;
 
-# Run tests in watch mode
-npm run test:watch
+using HarmonyLib;
 
-# Run tests with coverage
-npm run test:coverage
-
-# Lint all files
-npm run lint
-
-# Lint and auto-fix issues
-npm run lint:fix
-
-# Format code with Prettier
-npm run format
-
-# Type check without emitting
-npm run type-check
-```
-
-## Code Style Guidelines
-
-### Imports
-- Use absolute imports with path aliases (e.g., `@/components`, `@/utils`)
-- Group imports: 1) external libraries, 2) internal modules, 3) relative imports
-- Sort imports alphabetically within groups
-- Avoid default exports; prefer named exports for better tree-shaking
-
-```typescript
-// Good
-import { useState } from 'react';
-import { debounce } from 'lodash-es';
-
-import { Button } from '@/components/Button';
-import { formatDate } from '@/utils/date';
-
-import { Helper } from './Helper';
-
-// Bad - mixed groups, default export
-import React from 'react';
-import Helper from './Helper';
-import { Button } from '@/components/Button';
-```
-
-### Formatting
-- Use 2 spaces for indentation
-- Max line length: 100 characters
-- Use single quotes for strings
-- Trailing commas in multi-line objects/arrays
-- Semicolons are required
-
-### Types & Naming
-- Use TypeScript for all new code
-- Prefer `interface` for object shapes, `type` for unions/aliases
-- Use PascalCase for: types, interfaces, enums, classes, components
-- Use camelCase for: variables, functions, methods, properties
-- Use UPPER_SNAKE_CASE for: constants, enum values
-- Use kebab-case for: file names (e.g., `my-component.tsx`)
-- Prefix interfaces with `I` only when avoiding naming conflicts
-
-```typescript
-// Good
-interface UserProfile {
-  userId: string;
-  displayName: string;
-}
-
-const MAX_RETRY_COUNT = 3;
-
-function calculateTotal(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + item.price, 0);
+namespace M32_QoL
+{
+    public class M32_ExamplePart : IScribedPart
+    {
+        private const int MAX_ITEMS = 10;
+        private int _counter = 0;
+        
+        public override bool WantEvent(int ID, int cascade)
+        {
+            return base.WantEvent(ID, cascade) || ID == CommandEvent.ID;
+        }
+        
+        public void DoSomething()
+        {
+            // Implementation
+        }
+    }
 }
 ```
+
+### Part Class Pattern
+- Use `IScribedPart` for all new parts (enables field migration)
+- Override `AllowStaticRegistration() => true` for player parts
+- Use `WantEvent` + `HandleEvent` pattern for events
 
 ### Error Handling
-- Use custom error classes for domain-specific errors
-- Always handle Promise rejections; use `try/catch` with async/await
+- Use try/catch around risky operations
+- Log errors to `Player.log` using `UnityEngine.Debug.LogError("[M32_QoL] message")`
 - Provide meaningful error messages with context
-- Log errors with sufficient detail for debugging
 - Never swallow errors silently
 
-```typescript
-// Good
-async function fetchUser(id: string): Promise<User> {
-  try {
-    const response = await api.get(`/users/${id}`);
-    return response.data;
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      throw new UserNotFoundError(`User ${id} not found`);
-    }
-    logger.error('Failed to fetch user', { userId: id, error });
-    throw new UserFetchError('Unable to retrieve user data');
-  }
-}
-```
+---
 
-### Functions & Components
-- Keep functions small and focused (max 50 lines ideally)
-- Use early returns to reduce nesting
-- Destructure props/parameters at the top
-- Document public APIs with JSDoc comments
+## Game Version Compatibility
 
-```typescript
-// Good
-interface ButtonProps {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}
+- This mod is developed for **Caves of Qud Build 2.0.2xx+**
+- API patterns may change between game versions
+- If the game updates, verify that APIs still work correctly
+- Check `Player.log` for deprecation warnings after game updates
 
-export function Button({ label, onClick, disabled = false }: ButtonProps): JSX.Element {
-  if (disabled) {
-    return <span className="btn-disabled">{label}</span>;
-  }
+---
 
-  return (
-    <button className="btn-primary" onClick={onClick}>
-      {label}
-    </button>
-  );
-}
-```
+## Testing Workflow
 
-### Testing
-- Use descriptive test names: `should <expected behavior> when <condition>`
-- Follow AAA pattern: Arrange, Act, Assert
-- Mock external dependencies; test one thing per test
-- Place tests next to source files or in `__tests__` directories
+Since CoQ mods are runtime-compiled, there's no build step. Testing happens in-game:
 
-```typescript
-// Good
-it('should return discounted price when coupon is applied', () => {
-  // Arrange
-  const cart = createCart({ items: [{ price: 100 }] });
-  const coupon = createCoupon({ discount: 0.2 });
+### Development Cycle
+1. **Start the game** with mod enabled
+2. **Check Player.log** for compilation errors on load
+3. **Test the feature** in-game
+4. **Check Player.log** again for runtime errors
+5. **Iterate**: Modify code → Reload mod (or restart game) → Test again
 
-  // Act
-  const total = cart.applyCoupon(coupon);
+### Debugging Tools
+- **Player.log**: `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log`
+- **In-game console**: `Ctrl+Shift+E` opens the debugging console
+- **Logging**: Use `UnityEngine.Debug.Log("[M32_QoL] message")` for debug output
 
-  // Assert
-  expect(total).toBe(80);
-});
-```
+---
 
-## Project Conventions
+## Quick Reference
 
-- Prefer immutable data; use `const`, spread operator, and methods like `map/filter/reduce`
-- Avoid `any` type; use `unknown` when type is uncertain
-- Use optional chaining (`?.`) and nullish coalescing (`??`)
-- Commit messages: use conventional commits format
-- Feature branches: `feature/description` or `fix/description`
+| Task | Location/Command |
+|------|------------------|
+| Add new feature option | `Options.xml` → add `[OptionFlag]` to `Options.cs` |
+| Add new keybind | `Commands.xml` |
+| Add new part | Create `M32_FeaturePart.cs` → Add to `PlayerMutator.cs` + `LoadGameHandler.cs` |
+| Add Harmony patch | Create patch class → Call from `HarmonyInitializer.cs` |
+| Debug errors | Check `Player.log` for exceptions and stack traces |
+| Decompile game code | `ilspy --assembly "Assembly-CSharp.dll" --output "temp/decompiled/"` |
+| Check mod loaded | Look for `[M32_QoL] M32_...Part attached to...` in Player.log |
+
+---
 
 ## Temp Folder Usage
 
@@ -194,6 +130,29 @@ it('should return discounted price when coupon is applied', () => {
   - Intermediate build artifacts
   - Test data or scratch files
   - Debugging outputs
+
+---
+
+## Mod Manifest
+
+The `manifest.json` file defines the mod's identity:
+
+```json
+{
+    "ID": "M32_QoL",
+    "Title": "{{C|M32's QoL}}",
+    "Description": "Quality of life improvements...",
+    "Version": "1.0.0",
+    "Author": "M32",
+    "Tags": "QoL,UI,Merchants"
+}
+```
+
+- `ID` must be unique across all mods
+- `{{C|...}}` applies color formatting in-game
+- Increment `Version` for each release
+
+---
 
 ## M32's QoL Mod - Agent Guidelines
 
@@ -214,7 +173,7 @@ When working on the M32's QoL Caves of Qud mod:
 ### File Organization
 - All mod files go in `M32_QoL/` directory
 - Each feature should have its own toggle in `Options.xml`
-- Each feature should have its own keybind in `Commands.xml`
+- Each feature should have its own keybind in `Commands.xml` (if needed)
 - Main logic goes in appropriately named `.cs` files
 
 ### API Documentation Maintenance
@@ -256,22 +215,27 @@ To avoid duplication and keep documentation organized, follow this separation:
 - ✅ API.md: Full Harmony patch implementation with complete code example
 - ❌ PLAN.md: Copy-pasting the full Harmony patch code that's already in API.md
 
-### Harmony / Decompilation
+---
+
+## Harmony / Decompilation / Debugging
 
 **ALWAYS DECOMPILE BEFORE YOU PATCH.** When working on Harmony patches, you MUST use `ilspy` to inspect the actual game code before writing your patch. Do not guess. Do not assume. Decompile and verify.
 
-- **Use `ilspy` BEFORE making any Harmony patch** — this is not optional
-- **Use `ilspy` when uncertain about the API** — if you're not 100% sure about a method signature, field name, or class structure, decompile and check
-- **Use `ilspy` to understand internal logic** — game systems often have unexpected behavior that you can only understand by reading the decompiled code
-- **Use `ilspy` to debug patches that aren't working** — if your patch doesn't work as expected, decompile to see what the actual code does
+### When to Use ilspy
+- **BEFORE making any Harmony patch** — this is not optional
+- **When uncertain about the API** — if you're not 100% sure about a method signature, field name, or class structure, decompile and check
+- **To understand internal logic** — game systems often have unexpected behavior that you can only understand by reading the decompiled code
+- **To debug patches that aren't working** — if your patch doesn't work as expected, decompile to see what the actual code does
 
-Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "temp/decompiled/"`
+### ilspy Command
+```bash
+ilspy --assembly "path/to/Assembly-CSharp.dll" --output "temp/decompiled/"
+```
 
 **Decompiled output MUST go to `temp/decompiled/`** — use the project's temp folder to keep decompiled files organized and out of version control.
 
-**Remember:** The API documentation in `API.md` is helpful, but it cannot capture every detail. When in doubt, decompile the actual game code and see for yourself.
-
-**API.md is NOT infallible.** It is a reference, not the source of truth. The source of truth is the decompiled game code.
+### API.md is NOT Infallible
+It is a reference, not the source of truth. The source of truth is the decompiled game code.
 
 **You MUST update `API.md` when you discover:**
 - New patterns or APIs not documented in `API.md`
@@ -281,7 +245,9 @@ Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "temp/decompil
 
 **After using `ilspy`, ask yourself:** Did I learn something new? Is this in `API.md`? Is it accurate? If not, update `API.md` for future agents.
 
-### File Access — You Have Full Read Access
+---
+
+## File Access — You Have Full Read Access
 
 **You have read access to ALL files you need.** This includes:
 
@@ -298,7 +264,9 @@ Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "temp/decompil
 
 **Do NOT operate in isolation.** Read files. Search for patterns. Understand before you write. And always decompile when working with Harmony patches.
 
-### Debugging — Check Player.log When Issues Arise
+---
+
+## Debugging — Check Player.log When Issues Arise
 
 **When the user reports an issue after testing, you MUST check Player.log.**
 
