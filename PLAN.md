@@ -43,8 +43,32 @@
 - [ ] Test with various item types
 - [ ] Test compatibility with Zone Trade
 
+### Auto Loot Feature
+- [x] Research game's DroppedByPlayer property (built-in int property)
+- [x] Create AutoLoot.cs with M32_AutoLootPart
+- [x] Add 8 options to Options.xml
+- [x] Add option flags to Options.cs
+- [x] Implement movement detection (BeforeTakeActionEvent, EnteredCellEvent)
+- [x] Implement item pickup on current + adjacent cells
+- [x] Implement ShouldAutoLoot() filter
+- [x] Implement container content extraction
+- [x] Implement auto-explore integration (AutoexploreObjectEvent)
+- [x] Add M32_AutoLootPart to PlayerMutator and LoadGameHandler
+- [x] Implement ownership check (Skip Owned Items option)
+- [x] exclude harvestable objects (plants, etc.)
+- [x] exclude garbage/trash items (via Garbage part check)
+- [ ] Test liquid handling (containers vs puddles)
+- [ ] Test boulder/stone/corpse filtering
+- [ ] Test weight checking
+- [x] Test dropped item cooldown
+- [ ] Test combat toggle
+- [ ] Test auto-explore waypoint integration
+- [ ] Test ownership check (friendly vs hostile factions)
+- [ ] Test harvestable object exclusion (plants, etc.)
+- [ ] Test garbage/trash exclusion (Garbage part check)
+- [ ] Test performance (9 cells per movement)
+
 ### Future Features
-- [ ] Auto-loot feature
 - [ ] Quick travel enhancements
 
 ## Overview
@@ -92,8 +116,134 @@ When the player presses Ctrl+T (configurable), open a trade UI with the consolid
 - **Command ID**: `M32QoL_ZoneTrade`
 - **Default**: Ctrl+T
 - **Category**: Mod: M32's QoL
-- **Layer**: Adventure
 - Configurable via Keybinds Menu → Mod: M32's QoL
+
+## Feature: Auto Loot
+
+### Description
+Automatically picks up nearby items when the player moves. Integrates with auto-explore to add items as waypoints. Highly configurable with multiple options for filtering items and controlling behavior.
+
+### Behavior Specifications
+
+#### Trigger Conditions
+- **Movement Detection**: Triggers onevery cell change via `BeforeTakeActionEvent` and `EnteredCellEvent`
+- **Combat Mode**: Optional toggle to continue during combat (default: off)
+- **Auto-Explore**: Integrates with `AutoexploreObjectEvent` to add items as waypoints
+
+#### Item Detection
+- Checks currenttile + 8 adjacent tiles (9 cells total)
+- Picks up items in weight order (lowest first)
+- Safety limit: Max 10 items per turn to prevent lag
+
+#### Item Filtering (Configurable)
+1. **Always Skip**:
+   - Items with `NoAutoget` tag/property
+   - Items where `IsTakeable()` returns false
+   - Items with `Harvestable` part (world decorations like plants, harvestable objects)
+     - These are meant to be walked over to harvest resources
+     - NOT meant to be picked up as inventory items
+   - Items with `Garbage` part (world decorations like garbage, trash)
+     - These have `Takeable="true"` but are marked with `<part Name="Garbage" />`
+     - They are "gettable terrain" not meantfor inventory
+   - Liquid puddles/pools on ground (MaxVolume < 0)
+
+2. **Optional Filters**:
+   - Boulders/Stones (Blueprint: SmallBoulder*, MediumBoulder*, LargeBoulder*, "Small Stone", "Large Stone")
+   - Corpses (Tag: "DynamicObjectsTable:Corpses")
+   - Non-liquid containers (always loot contents, optionally loot empty container)
+
+3. **Weight Check** (Optional, strict):
+   - Only pick up if `currentWeight + itemWeight <= maxWeight`
+   - Uses `GetCarriedWeight()` and `GetMaxCarriedWeight()`
+
+4. **Dropped Item Cooldown** (Slider: -1 to 100 turns):
+   - Uses custom `M32_DroppedTurn` property to track when items were dropped
+   - Game sets `DroppedByPlayer=1` flag when player drops items (value is a flag, not turn count)
+   - When we first encounter an item with `DroppedByPlayer`, we record the current turn in `M32_DroppedTurn`
+   - Subsequent checks use `M32_DroppedTurn` for cooldown calculation
+   - `-1` = Never pickup dropped items
+   - `0` = Pickup immediately
+   - `5` (default) = Wait 5 turns before auto-looting
+
+#### Container Handling
+- **Non-liquid containers** (chests, sacks, etc.):
+  - Always loot contents first (unless auto-exploring - game handles it)
+  - Optionally loot empty container based on setting
+- **Liquid containers** (waterskins, vials):
+  - Always loot (MaxVolume >= 0 = container, notpuddle)
+  - Can contain liquids and be looted
+
+### Options
+
+1. **Enable Auto Loot** (Checkbox, default: Yes)
+   - Master toggle for the feature
+
+2. **Auto Loot During Combat** (Checkbox, default: No)
+   - Continue looting while enemies nearby
+   - Requires master toggle enabled
+
+3. **Check Weight Capacity** (Checkbox, default: Yes)
+   - Only loot if won't become over-encumbered
+   - Strict weight checking
+
+4. **Loot Empty Containers** (Checkbox, default: Yes)
+   - Loot empty non-liquid containers (chests, sacks)
+   - Contents are always looted from containers
+
+5. **Loot Corpses** (Checkbox, default: Yes)
+   - Auto-loot corpses
+   - Uses "DynamicObjectsTable:Corpses" tag
+
+6. **Loot Boulders & Stones** (Checkbox, default: No)
+   - Auto-loot boulders and stones (heavy items)
+   - Checks blueprint prefix ("Boulder", "Stone", "Rock")
+
+7. **Dropped Item Cooldown** (Slider, -1 to 100, default: 5)
+   - Don't auto-loot items you dropped within X turns
+   - `-1` = Never pickup dropped items
+   - Uses game's `DroppedByPlayer` property
+
+8. **Skip Owned Items** (Checkbox, default: Yes)
+   - Don't auto-loot items that belong to others (would be considered stealing)
+   - Checks `item.IsOwned()` and `item.Owner` property
+   - Uses `GetAllegianceLevel()` to determine factionrelationship
+   - **Option C behavior**: Skip owned items EXCEPT if owner is hostile
+     - If `AllegianceLevel.Member` (friendly/allied) → Skip (don't steal from friends)
+     - If `AllegianceLevel.None` (no relationship/unknown) → Allow (per user requirement)
+     - If hostile/negative → Allow (loot from enemies)
+   - Containers: If container is owned, skip the entire container
+
+### Technical Implementation
+
+#### Cell Tracking
+- Tracks `_lastCell` and `_lastMoveTurn` to prevent duplicate triggers
+- Only triggers once per move action
+
+#### Performance Optimization
+- Safety limit of 10 items per turn
+- Skips combat check if feature disabled
+- Uses existing game systems (no custom tracking)
+
+#### Auto-Explore Integration
+- Uses `AutoexploreObjectEvent` with `E.Command = "Autoget"`
+- Game's existing auto-explore handles pathfinding to items
+- **Note**: Removed `AutoAct` check for container contents (AutoAct not available in game version 1.0.4)
+- Container content extraction during auto-explore may be redundant, but harmless
+- Ownership check still prevents stealing from friendly factions
+
+### Known Issues / Notes
+- Performance acceptable at 9 cells per move (may revisit if issues)
+- Uses custom `M32_DroppedTurn` property for dropped item cooldown
+  - Game's `DroppedByPlayer` is a flag (value=1), not a turn count
+  - We record the turn when we first encounter a dropped item
+  - Cooldown calculated using our `M32_DroppedTurn` property
+- Liquid puddles detected via `LiquidVolume.MaxVolume < 0`
+- `AutoAct` class not available in some game versions - removed related checks
+- Harvestable objects (plants, etc.) excluded via `Harvestable` part check
+  - These are world decorations meant to be walked over, not picked up
+- Garbage/trash items excluded via `Garbage` part check
+  - These have `Takeable="true"` but are marked with `<part Name="Garbage" />`
+  - They are "gettable terrain" not meantfor inventory
 
 ## File Structure
 
@@ -105,7 +255,8 @@ M32_QoL/
 ├── Options.cs             # Shared options class (M32_Options)
 ├── ZoneTrade.cs           # Zone Trade implementation
 ├── StackedInventory.cs    # Stacked Inventory implementation
-└── PLAN.md               # This file
+├── AutoLoot.cs            # Auto Loot implementation
+└── PLAN.md                # This file
 ```
 
 ## Implementation Details

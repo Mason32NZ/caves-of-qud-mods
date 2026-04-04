@@ -14,5 +14,29 @@ namespace M32_QoL
 
         [OptionFlag]
         public static bool EnableStackedInventory;
+
+        [OptionFlag]
+        public static bool EnableAutoLoot;
+
+        [OptionFlag]
+        public static bool AutoLootInCombat;
+
+        [OptionFlag]
+        public static bool AutoLootCheckWeight;
+
+        [OptionFlag]
+        public static bool AutoLootEmptyContainers;
+
+        [OptionFlag]
+        public static bool AutoLootCorpses;
+
+        [OptionFlag]
+        public static bool AutoLootBouldersStones;
+
+        [OptionFlag]
+        public static int AutoLootDroppedCooldown;
+
+        [OptionFlag]
+        public static bool AutoLootSkipOwned;
     }
 }

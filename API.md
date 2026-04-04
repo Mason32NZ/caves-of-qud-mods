@@ -865,6 +865,73 @@ GameObject one = go.RemoveOne(); // remove one from a stack
 
 ---
 
+## Detecting Non-Lootable World Objects
+
+Some objects in Caves of Qud appear to be items but should NOT be picked up by auto-loot systems:
+
+### Harvestable Objects
+- **Check**: `item.GetPart("Harvestable") != null`
+- **Examples**: Plants, trees, mushrooms, flowers that can be harvested for resources
+- **Note**: These are world decorations meant to be walked over to harvest, NOT inventory items
+
+### Garbage/Trash Objects
+- **Check**: `item.GetPart("Garbage") != null`
+- **Examples**: Garbage, Klanq Garbage
+- **Blueprints**: "Garbage", "Klanq Garbage"
+- **Trap**: These have `Takeable="true"` but shouldn't be looted!
+- **Markers**: 
+  - `<part Name="Garbage" />` — the definitive marker (use this)
+  - `<stag Name="Garbage" />` — static tag (less reliable)
+  - XML comment: `<!-- Gettable terrain -->`
+- **Purpose**: World decoration, not inventory item
+
+### Rubble/Debris
+- **Check**: `!item.IsTakeable()` — caught by standard takeable check
+- **Examples**: Rubble
+- **Note**: These have `Takeable="false"`
+
+### NoAutoget Items
+- **Check**: `item.HasTagOrProperty("NoAutoget")`
+- **Examples**: Bouquet, HindrenClue quest items, Godshroom Cap
+- **Note**: Game's built-in marker for items that shouldn't be auto-picked
+
+### Summary Pattern for Auto-Loot
+
+```csharp
+// Check part-based exclusions (structural markers)
+if (item.GetPart("Harvestable") != null) return false;  // Plants/harvestables
+if (item.GetPart("Garbage") != null) return false;      // Trash/garbage
+
+// Check tag-based exclusions (metadata markers)
+if (item.HasTagOrProperty("NoAutoget")) return false;   // Game's exclusion marker
+
+// Check takeability (basic property)
+if (!item.IsTakeable()) return false;                    // Rubble/debris
+```
+
+### Why Check Parts Instead of Tags or Blueprints?
+
+**Parts** (`GetPart("Garbage")`):
+- Parts are class instances with behavior — more robust
+- Automatically inherited by variants (e.g., Klanq Garbage inherits Garbage part)
+- Structural identifier, not just metadata
+- Matches existing code patterns (`Harvestable` check)
+
+**Tags** (`HasTag("Garbage")`):
+- Tags can be added/removed at runtime
+- Static tags (`stag`) vs dynamic tags (`tag`) have subtle differences
+- Less reliable than parts
+
+**Blueprints** (`item.Blueprint == "Garbage"`):
+- String matching is fragile
+- New variants might not match naming patterns
+- Inheritance doesn't automatically propagate blueprint names
+- Less idiomatic to CoQ architecture
+
+**Conclusion**: Use `GetPart()` for structural identification, `HasTagOrProperty()` for game markers, avoid blueprint string matching.
+
+---
+
 ## Cell API
 
 ```csharp
@@ -1615,9 +1682,21 @@ bool isCurrency = item.IsCurrency;
 
 ## AutoAct / AutoExplore
 
+**WARNING: AutoAct may not exist in all game versions.** Before using, verify it's available by checking if compilation succeeds with `XRL.UI.AutoAct`. In some game versions (e.g., 1.0.4, Core 2.0.210.24), AutoAct is not accessible and causes compilation errors. Consider alternative approaches for detecting auto-explore state.
+
+**If available: AutoAct is in the `XRL.UI` namespace.**
+
 ```csharp
+using XRL.UI;  // ← REQUIRED or AutoAct won't compile (if available)
+
 // Check if any autoact is in progress
 string setting = AutoAct.Setting; // "" if none running
+
+// Check if auto-act is currently active
+bool isActive = AutoAct.IsActive();
+
+// Check if auto-act is movement (vs other actions)
+bool isMovement = AutoAct.IsMovement();
 
 // Interrupt
 AutoAct.Interrupt();
@@ -1643,14 +1722,54 @@ public class MyAction : OngoingAction
     public override void Complete() { /* perform the action */ }
     public override void End() { /* cleanup */ }
 }
+```
 
-// Make autoexplore pick up an item
-public override bool HandleEvent(AutoexploreObjectEvent e)
+### AutoexploreObjectEvent — Making Auto-Explore Interact with Items
+
+**CRITICAL: AutoexploreObjectEvent has `Item` property (not `Object`).**
+
+```csharp
+using XRL.UI;  // REQUIRED for AutoAct
+
+// CORRECT — Handle auto-explore object interaction
+public override bool WantEvent(int ID, int cascade)
 {
-    e.Command ??= "Autoget"; // "Autoget" = pick up this item
-    return base.HandleEvent(e);
+    return base.WantEvent(ID, cascade) || ID == AutoexploreObjectEvent.ID;
+}
+
+public override bool HandleEvent(AutoexploreObjectEvent E)
+{
+    // WRONG: E.Object — this property doesn't exist!
+    // CORRECT: E.Item — the GameObject being considered
+    if (E.Item == null || The.Player == null)
+        return base.HandleEvent(E);
+    
+    // Check if this item should be auto-looted
+    if (ShouldAutoLoot(E.Item, The.Player))
+    {
+        // Tell auto-explore to pick up this item
+        E.Command = "Autoget";
+    }
+    
+    return base.HandleEvent(E);
+}
+
+// Example: Skip container extraction during auto-explore
+private void HandleContainerContents(GameObject container, GameObject player)
+{
+    // Only loot contents if NOT auto-exploring
+    // Auto-explore already handles container contents
+    if (AutoAct.IsActive() && AutoAct.IsMovement())
+        return;
+    
+    // Loot container contents...
 }
 ```
+
+**Common Pitfalls:**
+1. **Missing namespace**: `AutoAct` won't compile without `using XRL.UI;`
+2. **Wrong property**: `AutoexploreObjectEvent` has `E.Item` not `E.Object`
+3. **Both error**: Combining these mistakes causes 3+ compilation errors
 
 ---
 

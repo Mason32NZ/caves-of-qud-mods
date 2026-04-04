@@ -42,6 +42,7 @@ namespace M32_QoL
         {
             M32_HarmonyInitializer.Init();
             player.RequirePart<M32_ZoneTradePart>();
+            player.RequirePart<M32_AutoLootPart>();
         }
     }
 
@@ -58,6 +59,7 @@ namespace M32_QoL
                 return;
             }
             The.Player.RequirePart<M32_ZoneTradePart>();
+            The.Player.RequirePart<M32_AutoLootPart>();
         }
     }
 

@@ -257,20 +257,63 @@ To avoid duplication and keep documentation organized, follow this separation:
 - ❌ PLAN.md: Copy-pasting the full Harmony patch code that's already in API.md
 
 ### Harmony / Decompilation
-- **You can use the `ilspy` tool to decompile game EXEs or DLLs** when working on Harmony patches
-- Use ILSpy to inspect the game's internal methods, classes, and logic to understand what to patch
-- This is especially useful when you need to:
-  - Find the exact method signature to target with a Harmony patch
-  - Understand the internal logic of a game system before patching it
-  - Debug why a patch isn't working as expected
-- Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "decompiled.cs"`
-- **Decompiled output should go to `temp/decompiled/`** — use the project's temp folder to keep decompiled files organized and out of version control
 
-### Debugging Resources
-You have access to the following resources whenever you need them:
-- **Player.log** — Located at `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` on Windows. Check this for runtime errors, exceptions, and debug output from the game
-- **Game mod files** — You can read and search through existing mod files in the `M32_QoL/` directory
-- **Game files** — You can decompile game assemblies (Assembly-CSharp.dll, etc.) using `ilspy` to inspect internal implementations
-- **API.md** — Keep this up to date with any new patterns you discover
+**ALWAYS DECOMPILE BEFORE YOU PATCH.** When working on Harmony patches, you MUST use `ilspy` to inspect the actual game code before writing your patch. Do not guess. Do not assume. Decompile and verify.
 
-Use these resources proactively to understand issues, verify implementation details, and find working code patterns.
+- **Use `ilspy` BEFORE making any Harmony patch** — this is not optional
+- **Use `ilspy` when uncertain about the API** — if you're not 100% sure about a method signature, field name, or class structure, decompile and check
+- **Use `ilspy` to understand internal logic** — game systems often have unexpected behavior that you can only understand by reading the decompiled code
+- **Use `ilspy` to debug patches that aren't working** — if your patch doesn't work as expected, decompile to see what the actual code does
+
+Example: `ilspy --assembly "path/to/Assembly-CSharp.dll" --output "temp/decompiled/"`
+
+**Decompiled output MUST go to `temp/decompiled/`** — use the project's temp folder to keep decompiled files organized and out of version control.
+
+**Remember:** The API documentation in `API.md` is helpful, but it cannot capture every detail. When in doubt, decompile the actual game code and see for yourself.
+
+**API.md is NOT infallible.** It is a reference, not the source of truth. The source of truth is the decompiled game code.
+
+**You MUST update `API.md` when you discover:**
+- New patterns or APIs not documented in `API.md`
+- Information that conflicts with what's in `API.md`
+- Better examples or clearer explanations than what exists
+- Common pitfalls you encountered that aren't documented
+
+**After using `ilspy`, ask yourself:** Did I learn something new? Is this in `API.md`? Is it accurate? If not, update `API.md` for future agents.
+
+### File Access — You Have Full Read Access
+
+**You have read access to ALL files you need.** This includes:
+
+- **Mod files** — Read files in `M32_QoL/` directory anytime you need to understand the current implementation
+- **Game files** — Read documents, search for patterns, and refer to existing working code in the codebase
+- **Decompiled game assemblies** — Use `ilspy` to decompile and inspect game internals (Assembly-CSharp.dll, etc.)
+- **Player.log** — Located at `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` on Windows
+
+**When making changes:**
+1. Read the relevant existing files first
+2. Understand the current implementation before modifying
+3. Search for similar patterns in existing code
+4. Refer to `API.md` for documented patterns
+
+**Do NOT operate in isolation.** Read files. Search for patterns. Understand before you write. And always decompile when working with Harmony patches.
+
+### Debugging — Check Player.log When Issues Arise
+
+**When the user reports an issue after testing, you MUST check Player.log.**
+
+The Player.log file at `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` contains:
+- Runtime errors and exceptions
+- Stack traces with line numbers
+- Debug output from the game
+- Mod loading errors
+- Harmony patch failures
+
+**After the user tests and reports a problem:**
+1. Read the Player.log file
+2. Look for exceptions, errors, or warnings related to your changes
+3. Search for your class names or mod ID in the log
+4. Identify the root cause from the error messages
+5. Fix the issue based on what the log tells you
+
+**Do not guess at fixes.** Read the log. Understand what failed. Then fix it.
