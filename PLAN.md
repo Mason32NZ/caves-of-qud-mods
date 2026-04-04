@@ -29,8 +29,6 @@
 - [x] Sort consolidated merchant items alphabetically by name
 - [x] Implement Approach 3: Post-trade Reconciliation to return items to correct owners after trade
 - [x] Fix UI synchronization issue: Force-close trade UI immediately after TRADE button click to prevent showing stale data
-- [ ] Selling to best price merchant (deferred to v1.1)
-- [ ] Testing and bug fixes
 
 ### Stacked Inventory Feature
 - [x] Create StackedInventory.cs with stack merging logic
@@ -40,36 +38,24 @@
 - [x] Implement StackInventory method
 - [x] Add Harmony patch for InventoryScreen.Show() (Postfix)
 - [x] Add Harmony patch for TradeScreen.Show() (Prefix to run before Zone Trade)
-- [ ] Test with various item types
-- [ ] Test compatibility with Zone Trade
 
 ### Auto Loot Feature
 - [x] Research game's DroppedByPlayer property (built-in int property)
 - [x] Create AutoLoot.cs with M32_AutoLootPart
-- [x] Add 8 options to Options.xml
+- [x] Add 8 options to Options.xml (now 9 options including EnableAutoLoot master toggle)
 - [x] Add option flags to Options.cs
 - [x] Implement movement detection (BeforeTakeActionEvent, EnteredCellEvent)
-- [x] Implement item pickup on current + adjacent cells
-- [x] Implement ShouldAutoLoot() filter
+- [x] Implement item pickup on current + adjacent cells (9 cells total)
+- [x] Implement ShouldAutoLoot() filter with exclusions
 - [x] Implement container content extraction
 - [x] Implement auto-explore integration (AutoexploreObjectEvent)
 - [x] Add M32_AutoLootPart to PlayerMutator and LoadGameHandler
-- [x] Implement ownership check (Skip Owned Items option)
-- [x] exclude harvestable objects (plants, etc.)
-- [x] exclude garbage/trash items (via Garbage part check)
-- [ ] Test liquid handling (containers vs puddles)
-- [ ] Test boulder/stone/corpse filtering
-- [ ] Test weight checking
-- [x] Test dropped item cooldown
-- [ ] Test combat toggle
-- [ ] Test auto-explore waypoint integration
-- [ ] Test ownership check (friendly vs hostile factions)
-- [ ] Test harvestable object exclusion (plants, etc.)
-- [ ] Test garbage/trash exclusion (Garbage part check)
-- [ ] Test performance (9 cells per movement)
-
-### Future Features
-- [ ] Quick travel enhancements
+- [x] Implement ownership check (Avoid Stealing option using GetAllegianceLevel)
+- [x] Exclude harvestable objects (plants, etc. via Harvestable part check)
+- [x] Exclude garbage/trash items (via Garbage part check)
+- [x] Implement weight capacity checking (Check Weight Capacity option)
+- [x] Implement dropped item cooldown (using M32_DroppedTurn custom property)
+- [x] Implement combat toggle (Loot During Combat option)
 
 ## Overview
 A Caves of Qud quality-of-life mod featuring the **Zone Trade** system for consolidated merchant trading.
@@ -108,7 +94,7 @@ When the player presses Ctrl+T (configurable), open a trade UI with the consolid
 - Message shown if no friendly merchants available
 
 ### Options
-- **Single Toggle**: `Option_M32QoL_EnableZoneTrade` (Checkbox, Default: Yes)
+- **Master Toggle**: `Option_M32QoL_EnableZoneTrade` - "{{M|Feature: Zone Trade}}" (Checkbox, Default: Yes)
 - Located in: Options Menu → Mod: M32's QoL
 - Disabling prevents the keybind from working
 
@@ -126,7 +112,7 @@ Automatically picks up nearby items when the player moves. Integrates with auto-
 ### Behavior Specifications
 
 #### Trigger Conditions
-- **Movement Detection**: Triggers onevery cell change via `BeforeTakeActionEvent` and `EnteredCellEvent`
+- **Movement Detection**: Triggers on every cell change via `BeforeTakeActionEvent` and `EnteredCellEvent`
 - **Combat Mode**: Optional toggle to continue during combat (default: off)
 - **Auto-Explore**: Integrates with `AutoexploreObjectEvent` to add items as waypoints
 
@@ -142,9 +128,9 @@ Automatically picks up nearby items when the player moves. Integrates with auto-
    - Items with `Harvestable` part (world decorations like plants, harvestable objects)
      - These are meant to be walked over to harvest resources
      - NOT meant to be picked up as inventory items
-   - Items with `Garbage` part (world decorations like garbage, trash)
-     - These have `Takeable="true"` but are marked with `<part Name="Garbage" />`
-     - They are "gettable terrain" not meantfor inventory
+- Items with `Garbage` part (world decorations like garbage, trash)
+      - These have `Takeable="true"` but are marked with `<part Name="Garbage" />`
+      - They are "gettable terrain" not meant for inventory
    - Liquid puddles/pools on ground (MaxVolume < 0)
 
 2. **Optional Filters**:
@@ -170,48 +156,49 @@ Automatically picks up nearby items when the player moves. Integrates with auto-
   - Always loot contents first (unless auto-exploring - game handles it)
   - Optionally loot empty container based on setting
 - **Liquid containers** (waterskins, vials):
-  - Always loot (MaxVolume >= 0 = container, notpuddle)
+  - Always loot (MaxVolume >= 0 = container, not puddle)
   - Can contain liquids and be looted
 
 ### Options
 
-1. **Enable Auto Loot** (Checkbox, default: Yes)
+1. **Enable Auto Loot** (`Option_M32QoL_EnableAutoLoot`) - "{{M|Feature: Auto Loot}}" (Checkbox, Default: Yes)
    - Master toggle for the feature
 
-2. **Auto Loot During Combat** (Checkbox, default: No)
+2. **Loot During Combat** (`Option_M32QoL_AutoLootInCombat`) - "Loot During Combat" (Checkbox, Default: Yes, Requires: EnableAutoLoot)
    - Continue looting while enemies nearby
-   - Requires master toggle enabled
 
-3. **Check Weight Capacity** (Checkbox, default: Yes)
-   - Only loot if won't become over-encumbered
-   - Strict weight checking
-
-4. **Loot Empty Containers** (Checkbox, default: Yes)
-   - Loot empty non-liquid containers (chests, sacks)
-   - Contents are always looted from containers
-
-5. **Loot Corpses** (Checkbox, default: Yes)
-   - Auto-loot corpses
-   - Uses "DynamicObjectsTable:Corpses" tag
-
-6. **Loot Boulders & Stones** (Checkbox, default: No)
-   - Auto-loot boulders and stones (heavy items)
-   - Checks blueprint prefix ("Boulder", "Stone", "Rock")
-
-7. **Dropped Item Cooldown** (Slider, -1 to 100, default: 5)
-   - Don't auto-loot items you dropped within X turns
-   - `-1` = Never pickup dropped items
-   - Uses game's `DroppedByPlayer` property
-
-8. **Skip Owned Items** (Checkbox, default: Yes)
+3. **Avoid Stealing** (`Option_M32QoL_AutoLootSkipOwned`) - "Avoid Stealing" (Checkbox, Default: Yes, Requires: EnableAutoLoot)
    - Don't auto-loot items that belong to others (would be considered stealing)
    - Checks `item.IsOwned()` and `item.Owner` property
-   - Uses `GetAllegianceLevel()` to determine factionrelationship
+   - Uses `GetAllegianceLevel()` to determine faction relationship
    - **Option C behavior**: Skip owned items EXCEPT if owner is hostile
      - If `AllegianceLevel.Member` (friendly/allied) → Skip (don't steal from friends)
      - If `AllegianceLevel.None` (no relationship/unknown) → Allow (per user requirement)
      - If hostile/negative → Allow (loot from enemies)
    - Containers: If container is owned, skip the entire container
+
+4. **Check Weight Capacity** (`Option_M32QoL_AutoLootCheckWeight`) - "Check Weight Capacity" (Checkbox, Default: Yes, Requires: EnableAutoLoot)
+   - Only loot if won't become over-encumbered
+   - Strict weight checking
+
+5. **Pickup Player Dropped Items After X Turns** (`Option_M32QoL_AutoLootDroppedCooldown`) - (Slider, -1 to 100, Default: 5, Requires: EnableAutoLoot)
+   - Don't auto-loot items you dropped within X turns
+   - `-1` = Never pickup dropped items
+   - `0` = Pickup immediately
+   - `5` (default) = Wait 5 turns before auto-looting
+   - Uses game's `DroppedByPlayer` property and custom `M32_DroppedTurn` property
+
+6. **Pickup Empty Chests** (`Option_M32QoL_AutoLootEmptyContainers`) - "Pickup Empty Chests" (Checkbox, Default: Yes, Requires: EnableAutoLoot)
+   - Loot empty non-liquid containers (chests, sacks)
+   - Contents are always looted from containers
+
+7. **Pickup Corpses** (`Option_M32QoL_AutoLootCorpses`) - "Pickup Corpses" (Checkbox, Default: No, Requires: EnableAutoLoot)
+   - Auto-loot corpses
+   - Uses "DynamicObjectsTable:Corpses" tag
+
+8. **Pickup Boulders and Stones** (`Option_M32QoL_AutoLootBouldersStones`) - "Pickup Boulders and Stones" (Checkbox, Default: No, Requires: EnableAutoLoot)
+   - Auto-loot boulders and stones (heavy items)
+   - Checks blueprint prefix ("Boulder", "Stone", "Rock")
 
 ### Technical Implementation
 
@@ -243,7 +230,7 @@ Automatically picks up nearby items when the player moves. Integrates with auto-
   - These are world decorations meant to be walked over, not picked up
 - Garbage/trash items excluded via `Garbage` part check
   - These have `Takeable="true"` but are marked with `<part Name="Garbage" />`
-  - They are "gettable terrain" not meantfor inventory
+  - They are "gettable terrain" not meant for inventory
 
 ## File Structure
 
@@ -452,35 +439,19 @@ See `API.md` section "TradeScreen — Force Close After Trade" for implementatio
 
 ## Lessons Learned
 
-### Harmony Patching Best Practices
+### Harmony Patching (Zone Trade)
 
-1. **Static methods > Async void methods**: When you need to modify behavior, look for static methods that are easier to patch. We tried patching `TradeScreen.HandleMenuOption` (async void) multiple times before realizing we should patch `TradeUI.PerformOffer` (static) instead.
+We encountered several challenges that required specific solutions:
 
-2. **Return value modification > Instance method calls**: Instead of trying to call `Hide()` via reflection on a TradeScreen instance (which failed because `SingletonWindowBase<T>.instance` couldn't be found), we modified the return value of `PerformOffer` from `REFRESH` to `CLOSE`. The game naturally closed the screen based on this return value.
+1. **Patch target selection**: We tried patching `TradeScreen.HandleMenuOption` (async void) multiple times before finding that patching `TradeUI.PerformOffer` (static) was more reliable.
 
-3. **Call counters don't work for initialization**: `ClearAndSetupTradeUI()` is called multiple times during screen initialization, making call-counting unreliable for detecting post-trade state.
+2. **UI state management**: Attempting to get a `TradeScreen` instance via `SingletonWindowBase<T>.instance` reflection failed. Instead, we modified the return value of `PerformOffer`.
 
-4. **Virtual items are destroyed during trade**: The game destroys virtual GameObjects during the trade process (normal behavior). Any tracking must use persistent data structures (like `VirtualItemRegistry`) that survive object destruction.
+3. **Multiple initialization calls**: `ClearAndSetupTradeUI()` is called multiple times during screen setup, making call-counting unreliable for detecting post-trade state.
 
-See `API.md` section "TradeScreen — Force Close After Trade" for the full implementation pattern.
+4. **Virtual item lifecycle**: Virtual GameObjects are destroyed during trade processing, requiring persistent tracking via `VirtualItemRegistry`.
 
-## Testing Checklist
-- [x] Mod loads without errors
-- [x] Options appear in menu
-- [x] Keybind appears and is configurable
-- [ ] Zone Trade works with single merchant
-- [ ] Zone Trade works with multiple merchants
-- [ ] Prices respect faction reputation
-- [ ] Selling routes to best price merchant
-- [ ] Hostile merchants excluded
-- [ ] Merchants on different levels excluded
-- [ ] Toggle disables feature
-- [x] Works on new games
-- [x] Post-trade reconciliation moves items to correct owners
-- [x] Items bought by player stay with player
-- [x] Reconciliation logs show correct item movements
-- [x] Trade UI closes immediately after clicking TRADE (no refresh showing stale data)
-- [x] Works on loaded saves
+See `API.md` section "Harmony Patching Lessons Learned" for general principles derived from these experiences.
 
 ---
 
@@ -517,26 +488,9 @@ Same rules as Zone Trade:
 - **Safety**: Uses locking to prevent concurrent execution; validates items before removal
 
 ### Options
-- **Toggle**: `Option_M32QoL_EnableStackedInventory` (Checkbox, Default: Yes)
+- **Toggle**: `Option_M32QoL_EnableStackedInventory` - "{{M|Feature: Stacked Inventory}}" (Checkbox, Default: Yes)
 - Located in: Options Menu → Mod: M32's QoL
 - Disabling prevents automatic stacking
 
 ### Keybind
 - None required (automatic feature)
-
-### Testing Checklist
-- [ ] Stacked Inventory works when opening inventory
-- [ ] Stacked Inventory runs before Zone Trade when opening trade
-- [ ] Compatible items are merged
-- [ ] Incompatible items are not merged
-- [ ] Non-liquid containers (chests, bags) do NOT stack
-- [ ] Empty liquid containers (waterskins) CAN stack
-- [ ] Liquid containers with contents do NOT stack
-- [ ] Items with different modifications do NOT stack
-- [ ] Data Disks are not stacked
-- [ ] Unidentified artifacts are not stacked
-- [ ] Items are sorted alphabetically before stacking
-- [ ] Toggle disables feature
-- [ ] No errors in Player.log
-- [ ] Works with loaded saves
-- [ ] Works on new games

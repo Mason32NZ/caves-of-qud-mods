@@ -21,6 +21,7 @@ Compiled from: the official wiki (wiki.cavesofqud.com/wiki/Modding:Overview and 
 - **Modifications are individual parts, not a single "Modification" part** — items with `ModSharp`, `ModHeavy`, etc. are separate part types implementing `IModification`. Use `PartsList.Where(p => p is IModification)` to find all mods on an item
 - **Prefer static methods over async void methods for Harmony patches** — static methods are much more reliable to patch. If you need to modify behavior in an async void method, look for the static method it calls and patch that instead (e.g., patch `PerformOffer` return value instead of trying to intercept `HandleMenuOption`)
 - **SingletonWindowBase<T>.instance reflection often fails** — use alternative approaches like modifying return values or patching the method that uses the instance
+- See "Harmony Patching Lessons Learned" section for more detailed guidance
 
 ---
 
@@ -841,6 +842,15 @@ bool los = go.HasLOSTo(other);
 int dist = player.DistanceTo(other);
 string dir = Directions.GetUITextArrowForDirection(go.GetDirectionToward(other));
 bool enemies = go.ArePerceptibleHostilesNearby(Action: myAction);
+
+// Faction relationships
+Brain.AllegianceLevel level = go.GetAllegianceLevel(factionName);
+// AllegianceLevel values: Member (friendly/allied), Neutral, None (unknown), Hostile, Enemy
+// Useful for checking if you should skip owned items (don't steal from friends)
+if (level == Brain.AllegianceLevel.Member)
+    // Friendly - skip owned items
+if (level == Brain.AllegianceLevel.Hostile || level == Brain.AllegianceLevel.Enemy)
+    // Enemy - allow picking up their items
 ```
 
 ### Misc
@@ -1360,6 +1370,16 @@ bool flag = E.GetFlag("FlagName");
 
 // One-liner with params
 bool continued = go.FireEvent(Event.New("CommandTrade", "Target", merchant));
+```
+
+### Useful Game Commands
+
+```csharp
+// Pick up an item (same as player pressing 'g' on it)
+player.FireEvent(Event.New("CommandTakeObject", "Object", item));
+
+// Trade with a merchant (prefer TradeUI.ShowTradeScreen instead)
+player.FireEvent(Event.New("CommandTrade", "Target", merchant));
 ```
 
 ### MinEvents (Modern)
@@ -1968,6 +1988,20 @@ public static MethodBase TargetMethod()
 }
 ```
 
+### Harmony Patching Lessons Learned
+
+**Key principles discovered through practice:**
+
+1. **Static methods > Async void methods**: Static methods are much easier to patch reliably. Async void methods have complex control flow that makes interception difficult. If you need to modify behavior in an async void method, look for a static method it calls and patch that instead.
+
+2. **Return value modification > Reflection calls**: Instead of trying to call instance methods via reflection (which can fail due to internal state issues like `SingletonWindowBase<T>.instance` not being found), modify return values. The game's control flow will naturally handle the rest based on the modified return value.
+
+3. **Call counters are unreliable during initialization**: Methods like `ClearAndSetupTradeUI()` can be called multiple times during screen setup, making call-counting approaches fragile for detecting post-action state.
+
+4. **Virtual objects may be destroyed during processing**: When working with virtual/temporary GameObjects, use persistent data structures (dictionaries, registry classes) that survive object destruction. The game may destroy objects before your cleanup code runs.
+
+**Example**: See the "TradeScreen — Force Close After Trade" section for a practical application of return value modification.
+
 ---
 
 ## Description / Short Description
@@ -2006,6 +2040,15 @@ Dictionary<string, int> components = vol.ComponentLiquids;
 vol.ProcessContact(target, Initial: true, Poured: true, PouredBy: who, ContactVolume: 1);
 vol.PourIntoCell(who, cell, 1, ref requestExit, CanPourOn: true);
 bool hasFreshWater = go.ContainsFreshWater();
+
+// Detecting puddles vs containers
+// MaxVolume < 0 indicates a liquid puddle/pool on the ground (not a container)
+// MaxVolume >= 0 indicates an actual container (waterskin, vial, etc.)
+if (vol != null && vol.MaxVolume < 0)
+{
+    // This is a liquid puddle on the ground, not a container
+    // Don't pick it up as an inventory item
+}
 ```
 
 ---

@@ -1,51 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <options>
-    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="Enable Zone Trade"
+
+    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="{{M|Feature: Zone Trade}}"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
-        <helptext>When enabled, press Ctrl+T to trade with all friendly merchants in the current zone at once.</helptext>
+        <helptext>When enabled, use the key bind to trade with all friendly merchants in the current zone at once.</helptext>
     </option>
-    <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="Stacked Inventory"
+
+    <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}}"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
-        <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Liquid containers can stack if empty; other containers do not stack.</helptext>
+        <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Liquid containers can stack if empty; other containers do not stack. Helps reduce unnecessary scrolling when looking at your inventory.</helptext>
     </option>
-    <option ID="Option_M32QoL_EnableAutoLoot" DisplayText="Enable Auto Loot"
+
+    <option ID="Option_M32QoL_EnableAutoLoot" DisplayText="{{M|Feature: Auto Loot}}"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>Automatically pick up nearby items when moving.</helptext>
     </option>
-    <option ID="Option_M32QoL_AutoLootInCombat" DisplayText="Auto Loot During Combat"
-            Category="Mod: M32's QoL" Type="Checkbox" Default="No"
+    <option ID="Option_M32QoL_AutoLootInCombat" DisplayText="Loot During Combat"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
         <helptext>Continue auto-looting while enemies are nearby.</helptext>
+    </option>
+    <option ID="Option_M32QoL_AutoLootSkipOwned" DisplayText="Avoid Stealing"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
+            Requires="Option_M32QoL_EnableAutoLoot==Yes">
+        <helptext>Don't auto-loot items that belong to others (would be considered stealing).</helptext>
     </option>
     <option ID="Option_M32QoL_AutoLootCheckWeight" DisplayText="Check Weight Capacity"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
         <helptext>Only loot items if you won't become over-encumbered.</helptext>
     </option>
-    <option ID="Option_M32QoL_AutoLootEmptyContainers" DisplayText="Loot Empty Containers"
-            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
-            Requires="Option_M32QoL_EnableAutoLoot==Yes">
-        <helptext>Loot empty non-liquid containers (chests, sacks). Contents are always looted from containers.</helptext>
-    </option>
-    <option ID="Option_M32QoL_AutoLootCorpses" DisplayText="Loot Corpses"
-            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
-            Requires="Option_M32QoL_EnableAutoLoot==Yes">
-        <helptext>Auto-loot corpses.</helptext>
-    </option>
-    <option ID="Option_M32QoL_AutoLootBouldersStones" DisplayText="Loot Boulders &amp; Stones"
-            Category="Mod: M32's QoL" Type="Checkbox" Default="No"
-            Requires="Option_M32QoL_EnableAutoLoot==Yes">
-        <helptext>Auto-loot boulders and stones.</helptext>
-    </option>
-    <option ID="Option_M32QoL_AutoLootDroppedCooldown" DisplayText="Dropped Item Cooldown"
+    <option ID="Option_M32QoL_AutoLootDroppedCooldown" DisplayText="Pickup Player Dropped Items After X Turns"
             Category="Mod: M32's QoL" Type="Slider"
             Min="-1" Max="100" Increment="1" Default="5"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
         <helptext>Don't auto-loot items you dropped within this many turns. -1 = never pickup dropped items.</helptext>
     </option>
-    <option ID="Option_M32QoL_AutoLootSkipOwned" DisplayText="Skip Owned Items"
+    <option ID="Option_M32QoL_AutoLootEmptyContainers" DisplayText="Pickup Empty Chests"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
-        <helptext>Don't auto-loot items that belong to others (would be considered stealing).</helptext>
+        <helptext>Auto-loot empty non-liquid containers (chests, sacks). Contents are always looted from containers.</helptext>
     </option>
+    <option ID="Option_M32QoL_AutoLootCorpses" DisplayText="Pickup Corpses"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="No"
+            Requires="Option_M32QoL_EnableAutoLoot==Yes">
+        <helptext>Auto-loot corpses.</helptext>
+    </option>
+    <option ID="Option_M32QoL_AutoLootBouldersStones" DisplayText="Pickup Boulders and Stones"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="No"
+            Requires="Option_M32QoL_EnableAutoLoot==Yes">
+        <helptext>Auto-loot boulders and stones.</helptext>
+    </option>
+
 </options>
