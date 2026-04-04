@@ -66,8 +66,6 @@ namespace M32_QoL
                 return;
             }
 
-            AddPlayerMessage("Consolidating liquids...");
-
             int totalTransfers = 0;
             int groupsProcessed = 0;
 

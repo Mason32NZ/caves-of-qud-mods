@@ -60,14 +60,16 @@
 ### Consolidate Liquids Feature
 - [x] Add EnableConsolidateLiquids option to Options.xml
 - [x] Add EnableConsolidateLiquids option flag to Options.cs
-- [x] Create ConsolidateLiquids.cs with M32_LiquidConsolidator
+- [x] Create ConsolidateLiquids.cs with M32_ConsolidateLiquidsPart
 - [x] Implement GetMixtureKey() with GCD-based ratio normalization
 - [x] Implement PourLiquid() using Split() and MixWith()
 - [x] Implement ConsolidateLiquids() main logic
 - [x] Add neutron flux exclusion (liquid ID: "neutronflux")
-- [x] Add command handler for M32QoL_ConsolidateLiquids
+- [x] Add command handler via HandleEvent pattern (M32_ConsolidateLiquidsPart)
 - [x] Add Ctrl+L keybind to Commands.xml
-- [ ] Test with various liquid types and containers
+- [x] Register M32_ConsolidateLiquidsPart in LoadGameHandler
+- [x] Add player messages ("Consolidating liquids..." / "Consolidation of liquids complete!")
+- [x] Refactor and clean up code (constants, simplified conditionals)
 
 ## Overview
 A Caves of Qud quality-of-life mod featuring the **Zone Trade** system for consolidated merchant trading.
@@ -106,7 +108,7 @@ When the player presses Ctrl+T (configurable), open a trade UI with the consolid
 - Message shown if no friendly merchants available
 
 ### Options
-- **Master Toggle**: `Option_M32QoL_EnableZoneTrade` - "{{M|Feature: Zone Trade}}" (Checkbox, Default: Yes)
+- **Master Toggle**: `Option_M32QoL_EnableZoneTrade` - "{{M|Feature: Zone Trade}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')" (Checkbox, Default: Yes)
 - Located in: Options Menu → Mod: M32's QoL
 - Disabling prevents the keybind from working
 
@@ -445,11 +447,6 @@ See `API.md` section "TradeScreen — Force Close After Trade" for implementatio
 ## Dependencies
 - None (uses only base game APIs)
 
-## Future Considerations
-- Additional QoL features will use same pattern
-- Each feature gets its own toggle and keybind
-- Modular design for easy expansion
-
 ## Lessons Learned
 
 ### Harmony Patching (Zone Trade)
@@ -465,6 +462,12 @@ We encountered several challenges that required specific solutions:
 4. **Virtual item lifecycle**: Virtual GameObjects are destroyed during trade processing, requiring persistent tracking via `VirtualItemRegistry`.
 
 See `API.md` section "Harmony Patching Lessons Learned" for general principles derived from these experiences.
+
+## Future Considerations
+- Each feature follows the same pattern: Part class + Events + Options.xml toggle
+- Features that need manual activation use Commands.xml keybinds
+- Automatic features (like Stacked Inventory) use Harmony patches instead
+- Modular design allows easy expansion
 
 ---
 
@@ -544,7 +547,7 @@ When the player presses Ctrl+L, merges liquids of the same type (by ratio) into 
 - Errors logged and skipped (no popup for individual failures)
 
 ### Options
-- **Toggle**: `Option_M32QoL_EnableConsolidateLiquids` - "{{M|Feature: Consolidate Liquids}}" (Checkbox, Default: Yes)
+- **Toggle**: `Option_M32QoL_EnableConsolidateLiquids` - "{{M|Feature: Consolidate Liquids}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')" (Checkbox, Default: Yes)
 - Located in: Options Menu → Mod: M32's QoL
 - Disabling prevents the keybind from working
 
@@ -555,21 +558,25 @@ When the player presses Ctrl+L, merges liquids of the same type (by ratio) into 
 - Configurable via Keybinds Menu → Mod: M32's QoL
 
 ### Command Handler
+Uses the same Part-based pattern as ZoneTrade:
 ```csharp
-[CommandHandler("M32QoL_ConsolidateLiquids")]
-public static void HandleConsolidateLiquids()
+public override bool HandleEvent(CommandEvent E)
 {
+    if (E.Command != "M32QoL_ConsolidateLiquids")
+        return base.HandleEvent(E);
+
     if (!M32_Options.EnableConsolidateLiquids)
-        return;
+        return false;
 
     ConsolidateLiquids(The.Player);
+    return false;
 }
 ```
 
 ### Logging
-- Logs consolidation summary to Player.log
-- Example: "Consolidated 3 waterskins: 64+50+30 -> 64, 64, 0"
-- Logs errors for individual container failures and continues
+- Logs consolidation summary to Player.log (e.g., "Made 5 liquid transfers across 2 groups")
+- Shows player messages: "Consolidating liquids..." at start, "Consolidation of liquids complete!" at end
+- Logs errors for individual container failures and continues (no popup)
 
 ### Technical Implementation
 
@@ -616,3 +623,9 @@ private static bool PourLiquid(GameObject source, GameObject target, int drams)
 ### Known Issues
 - Neutron flux cannot be consolidated (by design - would explode)
 - Errors on individual containers don't show popup - logged only
+
+### Code Quality
+- Uses LOG_PREFIX constant for consistent logging
+- Uses UNSAFE_LIQUID constant for the neutronflux exclusion
+- Simplified conditionals and early returns throughout
+- GCD calculation uses LINQ Aggregate for conciseness

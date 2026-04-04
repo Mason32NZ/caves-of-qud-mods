@@ -2080,6 +2080,40 @@ if (vol.ComponentLiquids.ContainsKey("neutronflux"))
 // e.g., { "water": 500, "wine": 500 } means 50% water, 50% wine
 // To get actual volume: Volume * Proportion / 1000
 int actualWaterDrams = vol.Volume * vol.ComponentLiquids["water"] / 1000;
+
+// GCD-based ratio calculation (useful for liquid consolidation)
+// Creates a unique key based on liquid proportions
+// Containers with the same ratio will have the same key
+private static string GetMixtureKey(LiquidVolume vol)
+{
+    if (vol?.ComponentLiquids == null || vol.ComponentLiquids.Count == 0)
+        return "";
+
+    var components = vol.ComponentLiquids
+        .Where(kv => kv.Value > 0)
+        .OrderBy(kv => kv.Key)
+        .ToList();
+
+    if (components.Count == 0)
+        return "";
+
+    // Use GCD to normalize proportions to smallest integers
+    // e.g., { "water": 50, "wine": 30 } → GCD=10 → "water:5|wine:3"
+    int gcd = components.Aggregate(0, (current, kv) => current == 0 ? kv.Value : GCD(current, kv.Value));
+
+    return string.Join("|", components.Select(kv => $"{kv.Key}:{kv.Value / gcd}"));
+}
+
+private static int GCD(int a, int b)
+{
+    while (b != 0)
+    {
+        int temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
 ```
 
 ---
