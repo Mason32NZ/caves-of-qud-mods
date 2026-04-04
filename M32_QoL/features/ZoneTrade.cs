@@ -11,60 +11,6 @@ using XRL.World.Parts.Skill;
 
 namespace M32_QoL
 {
-    #region Initialization
-
-    [HasModSensitiveStaticCache]
-    public static class M32_HarmonyInitializer
-    {
-        static M32_HarmonyInitializer()
-        {
-            try
-            {
-                var harmony = new Harmony("M32_QoL");
-                harmony.PatchAll();
-            }
-            catch (System.Exception ex)
-            {
-                UnityEngine.Debug.LogError($"[M32_QoL] Failed to apply Harmony patches: {ex}");
-            }
-        }
-
-        public static void Init()
-        {
-            // Static constructor handles initialization
-        }
-    }
-
-    [PlayerMutator]
-    public class M32_PlayerMutator : IPlayerMutator
-    {
-        public void mutate(GameObject player)
-        {
-            M32_HarmonyInitializer.Init();
-            player.RequirePart<M32_ZoneTradePart>();
-            player.RequirePart<M32_AutoLootPart>();
-        }
-    }
-
-    [HasCallAfterGameLoaded]
-    public class M32_LoadGameHandler
-    {
-        [CallAfterGameLoaded]
-        public static void AfterLoaded()
-        {
-            M32_HarmonyInitializer.Init();
-            if (The.Player == null)
-            {
-                UnityEngine.Debug.LogError("[M32_QoL] LoadGameHandler: Player is null!");
-                return;
-            }
-            The.Player.RequirePart<M32_ZoneTradePart>();
-            The.Player.RequirePart<M32_AutoLootPart>();
-        }
-    }
-
-    #endregion
-
     #region Data Structures
 
     public class VirtualItemData

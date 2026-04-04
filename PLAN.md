@@ -249,14 +249,18 @@ Automatically picks up nearby items when the player moves. Integrates with auto-
 
 ```
 M32_QoL/
-├── manifest.json          # Mod identity and metadata
-├── Commands.xml           # Keybind definitions
-├── Options.xml            # Options menu entries
-├── Options.cs             # Shared options class (M32_Options)
-├── ZoneTrade.cs           # Zone Trade implementation
-├── StackedInventory.cs    # Stacked Inventory implementation
-├── AutoLoot.cs            # Auto Loot implementation
-└── PLAN.md                # This file
+├── manifest.json               # Mod identity and metadata
+├── Commands.xml                # Keybind definitions
+├── Options.xml                 # Options menu entries
+├── Options.cs                  # Shared options class (M32_Options)
+├── HarmonyInitializer.cs       # Harmony patch initialization
+├── PlayerMutator.cs             # New game initialization
+├── LoadGameHandler.cs           # Save game loading handler
+├── features/                    # Feature implementations
+│   ├── AutoLoot.cs             # Auto Loot implementation
+│   ├── StackedInventory.cs     # Stacked Inventory implementation
+│   └── ZoneTrade.cs            # Zone Trade implementation
+└── PLAN.md                     # This file
 ```
 
 ## Implementation Details

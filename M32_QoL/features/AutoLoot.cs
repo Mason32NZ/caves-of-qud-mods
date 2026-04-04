@@ -327,14 +327,14 @@ namespace M32_QoL
                 }
             }
 
-            // Check corpses
+// Check corpses
             if (!M32_Options.AutoLootCorpses)
             {
                 if (item.HasTag("DynamicObjectsTable:Corpses"))
                     return false;
-}
+            }
 
-// Check if dropped recently (using our custom M32_DroppedTurn property)
+            // Check if dropped recently (using our custom M32_DroppedTurn property)
             // When the game sets DroppedByPlayer flag, we record the turn number in M32_DroppedTurn
             if (M32_Options.AutoLootDroppedCooldown >= -1 && item.HasIntProperty("DroppedByPlayer"))
             {
@@ -362,7 +362,7 @@ namespace M32_QoL
                 }
             }
 
-// Check weight capacity (strict)
+            // Check weight capacity (strict)
             if (M32_Options.AutoLootCheckWeight)
             {
                 if (!CanCarryWeight(player, item))

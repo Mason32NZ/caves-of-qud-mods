@@ -932,6 +932,103 @@ if (!item.IsTakeable()) return false;                    // Rubble/debris
 
 ---
 
+## DroppedByPlayer Property — Tracking Dropped Items
+
+The game's `DroppedByPlayer` property is used to mark items dropped by the player, but it has important limitations:
+
+### The Problem
+
+**CRITICAL**: `DroppedByPlayer` is a **flag** (value = 1), NOT a turn count!
+
+```csharp
+// WRONG — Treats the value as a turn number
+int dropTurn = item.GetIntProperty("DroppedByPlayer");  // Returns 1, not a turn!
+long turnsSinceDrop = currentTurn - dropTurn;  // Nonsense calculation
+```
+
+The game sets `DroppedByPlayer=1` as a simple boolean flag when the player drops an item. It does NOT record when the item was dropped.
+
+### The Solution
+
+Track the turn yourself with a custom property:
+
+```csharp
+// CORRECT — Use custom property to track drop turn
+if (item.HasIntProperty("DroppedByPlayer"))
+{
+    // First time seeing this dropped item — record the current turn
+    if (!item.HasIntProperty("MyMod_DroppedTurn"))
+    {
+        item.SetIntProperty("MyMod_DroppedTurn", (int)(The.Game?.Turns ?? 0));
+    }
+    
+    // Now you can calculate cooldown correctly
+    int dropTurn = item.GetIntProperty("MyMod_DroppedTurn");
+    long currentTurn = The.Game?.Turns ?? 0;
+    
+    if (currentTurn - dropTurn <= cooldownTurns)
+        return false;  // Still within cooldown
+}
+```
+
+### Key Points
+
+- `DroppedByPlayer` is set by the game when player drops items (value = 1)
+- Use a custom property (e.g., `MyMod_DroppedTurn`) to track the actual turn number
+- Set the custom property the first time you encounter an item with `DroppedByPlayer`
+- Properties are automatically serialized with save games
+- Clean up old properties periodically if needed (optional optimization)
+
+---
+
+## Filtering Items by Blueprint — Boulders and Stones
+
+When filtering items by blueprint name, be careful with naming patterns:
+
+### The Problem
+
+Blueprints don't always follow simple naming conventions:
+
+- **Wrong**: `bp.StartsWith("Boulder")` — Misses "SmallBoulder", "MediumBoulder", "LargeBoulder"
+- **Wrong**: `bp.Contains("Stone")` — Too broad, matches "ThunderStone" or other items
+
+### Correct Approach
+
+Check for specific blueprint patterns:
+
+```csharp
+// Boulders: SmallBoulder, MediumBoulder, LargeBoulder (and variants like SmallBoulder Grey)
+if (bp.StartsWith("SmallBoulder") || bp.StartsWith("MediumBoulder") || bp.StartsWith("LargeBoulder"))
+    return false;
+
+// Stones: Exact match for "Small Stone" and "Large Stone" (note the space!)
+if (bp == "Small Stone" || bp == "Large Stone")
+    return false;
+
+// Combined check
+if (bp.StartsWith("SmallBoulder") || bp.StartsWith("MediumBoulder") || bp.StartsWith("LargeBoulder") ||
+    bp == "Small Stone" || bp == "Large Stone")
+    return false;
+```
+
+### Blueprint Variants
+
+Many items have variant blueprints with different colors or properties:
+
+- `SmallBoulder` → `SmallBoulder Grey`, `SmallBoulder Blue`, `SmallBoulder Black`
+- `MediumBoulder` → `MediumBoulder Grey`, `MediumBoulder Blue`, `MediumBoulder Black`
+- `LargeBoulder` → `LargeBoulder Grey`, `LargeBoulder Blue`, `LargeBoulder Black`
+
+Using `StartsWith("SmallBoulder")` catches all variants.
+
+### When to Use Blueprint Checks
+
+- **Use for**: Specific item types where blueprints follow known patterns
+- **Avoid for**: Generic filtering where `.Contains()` might match unintended items
+- **Always test**: Check game files for actual blueprint names and variants
+
+---
+
 ## Cell API
 
 ```csharp
