@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <options>
 
-    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="{{M|Feature: Zone Trade}}"
+    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="{{M|Feature: Zone Trade}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, use the key bind to trade with all friendly merchants in the current zone at once.</helptext>
+    </option>
+
+    <option ID="Option_M32QoL_EnableConsolidateLiquids" DisplayText="{{M|Feature: Consolidate Liquids}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
+        <helptext>When enabled, use the key bind to consolidate liquids of the same type into larger containers. Only uses the containers the liquids are already using for many reasons. Does not work if you are in the Inventory/Trade UI, use when you are in-game. Neutron flux is never consolidated to avoid dying under the weight of a thousand suns.</helptext>
     </option>
 
     <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}}"

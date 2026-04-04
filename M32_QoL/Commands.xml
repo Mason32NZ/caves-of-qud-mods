@@ -4,4 +4,8 @@
              Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
         <keyboardBind Modifier="ctrl" Key="t"/>
     </command>
+    <command ID="M32QoL_ConsolidateLiquids" DisplayText="Consolidate Liquids"
+             Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
+        <keyboardBind Modifier="ctrl" Key="l"/>
+    </command>
 </commands>

@@ -14,6 +14,7 @@ namespace M32_QoL
             M32_HarmonyInitializer.Init();
             player.RequirePart<M32_ZoneTradePart>();
             player.RequirePart<M32_AutoLootPart>();
+            player.RequirePart<M32_ConsolidateLiquidsPart>();
         }
     }
 }

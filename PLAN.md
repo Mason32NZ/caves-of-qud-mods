@@ -57,6 +57,18 @@
 - [x] Implement dropped item cooldown (using M32_DroppedTurn custom property)
 - [x] Implement combat toggle (Loot During Combat option)
 
+### Consolidate Liquids Feature
+- [x] Add EnableConsolidateLiquids option to Options.xml
+- [x] Add EnableConsolidateLiquids option flag to Options.cs
+- [x] Create ConsolidateLiquids.cs with M32_LiquidConsolidator
+- [x] Implement GetMixtureKey() with GCD-based ratio normalization
+- [x] Implement PourLiquid() using Split() and MixWith()
+- [x] Implement ConsolidateLiquids() main logic
+- [x] Add neutron flux exclusion (liquid ID: "neutronflux")
+- [x] Add command handler for M32QoL_ConsolidateLiquids
+- [x] Add Ctrl+L keybind to Commands.xml
+- [ ] Test with various liquid types and containers
+
 ## Overview
 A Caves of Qud quality-of-life mod featuring the **Zone Trade** system for consolidated merchant trading.
 
@@ -245,6 +257,7 @@ M32_QoL/
 ├── LoadGameHandler.cs           # Save game loading handler
 ├── features/                    # Feature implementations
 │   ├── AutoLoot.cs             # Auto Loot implementation
+│   ├── ConsolidateLiquids.cs    # Consolidate Liquids implementation
 │   ├── StackedInventory.cs     # Stacked Inventory implementation
 │   └── ZoneTrade.cs            # Zone Trade implementation
 └── PLAN.md                     # This file
@@ -494,3 +507,112 @@ Same rules as Zone Trade:
 
 ### Keybind
 - None required (automatic feature)
+
+---
+
+## Feature: Consolidate Liquids
+
+### Description
+When the player presses Ctrl+L, merges liquids of the same type (by ratio) into containers with the largest capacity, filling them first. Works from anywhere in the game.
+
+### Behavior Specifications
+
+#### Liquid Mixing Rules
+- **Ratio-based matching**: Only containers with the exact same liquid ratio are consolidated
+  - Example: Container A (50 water + 30 wine) consolidates with Container B (25 water + 15 wine)
+  - Both have ratio 5:3 (water:wine)
+- **GCD normalization**: Uses greatest common divisor to calculate ratio
+  - Container with 50 water + 30 wine → ratio "water:5|wine:3"
+- **Empty containers ignored**: Only containers with Volume > 0 participate
+
+#### Safety Exclusions
+- **NEVER consolidate neutron flux**: Liquid ID "neutronflux" is explicitly excluded
+  - Neutron flux explodes if moved between containers
+  - Any container containing neutron flux is skipped entirely
+
+#### Fill Algorithm
+1. Group containers by ratio-based mixture key
+2. For each group with 2+ containers:
+   a. Sort by MaxVolume descending (largest first)
+   b. Calculate total liquid volume across all containers
+   c. Fill containers in order: fill first to max, then move to next
+   d. Use Split() and MixWith() for liquid transfer
+
+#### Pour Implementation
+- Uses `LiquidVolume.Split(int drams)` to create split volume from source
+- Uses `LiquidVolume.MixWith(LiquidVolume)` to combine into target
+- Errors logged and skipped (no popup for individual failures)
+
+### Options
+- **Toggle**: `Option_M32QoL_EnableConsolidateLiquids` - "{{M|Feature: Consolidate Liquids}}" (Checkbox, Default: Yes)
+- Located in: Options Menu → Mod: M32's QoL
+- Disabling prevents the keybind from working
+
+### Keybind
+- **Command ID**: `M32QoL_ConsolidateLiquids`
+- **Default**: Ctrl+L
+- **Category**: Mod: M32's QoL
+- Configurable via Keybinds Menu → Mod: M32's QoL
+
+### Command Handler
+```csharp
+[CommandHandler("M32QoL_ConsolidateLiquids")]
+public static void HandleConsolidateLiquids()
+{
+    if (!M32_Options.EnableConsolidateLiquids)
+        return;
+
+    ConsolidateLiquids(The.Player);
+}
+```
+
+### Logging
+- Logs consolidation summary to Player.log
+- Example: "Consolidated 3 waterskins: 64+50+30 -> 64, 64, 0"
+- Logs errors for individual container failures and continues
+
+### Technical Implementation
+
+#### Mixture Key Generation
+```csharp
+// Container with 50 water + 30 wine (proportions 500:300)
+// GCD(500, 300) = 100
+// Normalized: "water:5|wine:3" (sorted alphabetically)
+private static string GetMixtureKey(LiquidVolume vol)
+{
+    var components = vol.ComponentLiquids
+        .Where(kv => kv.Value > 0)
+        .OrderBy(kv => kv.Key)
+        .ToList();
+    
+    if (components.Count == 0) return "";
+    
+    int gcd = components[0].Value;
+    foreach (var kv in components)
+        gcd = GCD(gcd, kv.Value);
+    
+    return string.Join("|", components.Select(kv => 
+        $"{kv.Key}:{kv.Value / gcd}"));
+}
+```
+
+#### Pour Liquid Transfer
+```csharp
+private static bool PourLiquid(GameObject source, GameObject target, int drams)
+{
+    LiquidVolume sourceVol = source.LiquidVolume;
+    LiquidVolume targetVol = target.LiquidVolume;
+    
+    int availableSpace = targetVol.MaxVolume - targetVol.Volume;
+    int toTransfer = Math.Min(drams, availableSpace);
+    
+    LiquidVolume split = sourceVol.Split(toTransfer);
+    bool success = targetVol.MixWith(split);
+    
+    return success;
+}
+```
+
+### Known Issues
+- Neutron flux cannot be consolidated (by design - would explode)
+- Errors on individual containers don't show popup - logged only

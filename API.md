@@ -2049,6 +2049,37 @@ if (vol != null && vol.MaxVolume < 0)
     // This is a liquid puddle on the ground, not a container
     // Don't pick it up as an inventory item
 }
+
+// Splitting liquids (create a new LiquidVolume with portion of liquid)
+// Returns new LiquidVolume with 'drams' amount, reduces source volume
+LiquidVolume split = sourceVol.Split(drams);
+if (split != null && split.Volume > 0)
+{
+    // Mix into target container
+    bool success = targetVol.MixWith(split);
+}
+
+// Combining liquids
+// MixWith can fail for certain liquids (e.g., neutron flux explodes)
+// Always check return value for success
+bool success = targetVol.MixWith(sourceSplit);
+if (!success)
+{
+    // Mixing failed - liquid may be unsafe to combine
+}
+
+// Checking liquid safety
+// Use ComponentLiquids.Keys to check what liquids are in a container
+if (vol.ComponentLiquids.ContainsKey("neutronflux"))
+{
+    // DO NOT attempt to move neutron flux - it will explode!
+}
+
+// Liquid proportion system
+// ComponentLiquids stores proportions as integers out of 1000
+// e.g., { "water": 500, "wine": 500 } means 50% water, 50% wine
+// To get actual volume: Volume * Proportion / 1000
+int actualWaterDrams = vol.Volume * vol.ComponentLiquids["water"] / 1000;
 ```
 
 ---
