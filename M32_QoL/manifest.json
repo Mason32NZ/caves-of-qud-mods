@@ -1,9 +1,9 @@
 {
     "ID": "M32_QoL",
     "Title": "{{C|M32's QoL}}",
-    "Description": "Quality of life improvements for Caves of Qud. Features Zone Trade - trade with all friendly merchants in the current zone at once!",
+    "Description": "Major QoL improvements: Trade with all merchants at once, auto loot as you go, auto stack things for a clean inventory, and consolidate liquids!",
     "Version": "1.0.0",
     "Author": "M32",
-    "Tags": "QoL,UI,Merchants",
-    "PreviewImage": ""
+    "Tags": "QoL,UI,Merchants,Inventory",
+    "PreviewImage": "Preview.png"
 }
