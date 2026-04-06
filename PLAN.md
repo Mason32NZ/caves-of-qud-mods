@@ -53,7 +53,7 @@
 
 ## Features
 
-### Zone Trade `[Ctrl+T]`
+### Zone Trade `[Shift+T]`
 Trade with all friendly merchants in the zone at once.
 
 - Finds merchants with Commerce/Tinkering parts in same parasang
@@ -77,7 +77,7 @@ Pick up nearby items when moving.
 - Excludes harvestables, garbage, NoAutoget items
 - Dropped item cooldown with M32_DroppedTurn tracking
 
-### Consolidate Liquids `[Ctrl+L]`
+### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.
 
 - GCD-based ratio matching

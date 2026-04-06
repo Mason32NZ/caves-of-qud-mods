@@ -6,14 +6,14 @@ Trade with all merchants at once, auto loot as you go, auto stack things for a c
 
 ## Features
 
-### Zone Trade `[Ctrl+T]`
+### Zone Trade `[Shift+T]`
 
 Trade with **all friendly merchants in your current zone** at once. No more walking between vendors to find who has what you need (love too all my metamorphic polygel farmers). One keypress opens a consolidated trade window with every nearby merchant's inventory.
 
-- Automatically selects the merchant with the best services (identify, repair, recharge) as the 'host'
+- Automatically selects the merchant with the best services (identify, repair, recharge) as the host merchant
 - Closes trade window after trade for all those fast bois out there (and totally not to avoid weird bugs)
 
-### Consolidate Liquids `[Ctrl+L]`
+### Consolidate Liquids `[Shift+L]`
 
 Merge liquids of the same type into their largest containers. Keeps your inventory organized and maximizes container efficiency.
 
@@ -38,14 +38,10 @@ Automatically picks up nearby items when you move. Highly configurable to fit yo
 - Respects ownership (won't steal from friendly factions, optional)
 - Weight capacity checks to prevent over-encumbrance (optional)
 
----
-
 ## Keybinds
 
-| Keybind | Action |
-|---------|--------|
-| `Ctrl+T` | Open Zone Trade with nearby merchants |
-| `Ctrl+L` | Consolidate liquids in inventory |
+- `Shift+T`: Open Zone Trade with nearby merchants
+- `Shift+L`: Consolidate liquids in inventory
 
 ⚠️ You may need to **change your keybinds** if there are conflicts ⚠️
 
@@ -53,7 +49,7 @@ Both keybinds are configurable in **Options → Controls → Control Mapping →
 
 ## Compatibility
 
-- Developed for **Caves of Qud version 1.0.4 (build 2.0.210.24)** using the Modern UI
+- Developed for **Caves of Qud version 1.0.4 (build 2.0.210.24)** using the **Modern UI**
 - Should be compatible with other mods that don't heavily modify trade or inventory screens
 - Uses Harmony patches — may conflict with other mods patching the same methods
 

@@ -2,10 +2,10 @@
 <commands>
     <command ID="M32QoL_ZoneTrade" DisplayText="Trade with Zone Merchants"
              Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
-        <keyboardBind Modifier="ctrl" Key="t"/>
+        <keyboardBind Modifier="shift" Key="t"/>
     </command>
     <command ID="M32QoL_ConsolidateLiquids" DisplayText="Consolidate Liquids"
              Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
-        <keyboardBind Modifier="ctrl" Key="l"/>
+        <keyboardBind Modifier="shift" Key="l"/>
     </command>
 </commands>
