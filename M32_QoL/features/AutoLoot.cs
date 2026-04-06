@@ -125,7 +125,7 @@ namespace M32_QoL
                 return;
 
             // Check if in combat and combat looting is disabled
-            if (!M32_Options.AutoLootInCombat && IsInCombat(The.Player))
+            if (!M32_Options.AutoLootInCombat && The.Player.IsInCombat())
                 return;
 
             List<GameObject> itemsToLoot = new List<GameObject>();
@@ -327,10 +327,10 @@ namespace M32_QoL
                 }
             }
 
-// Check corpses
+            // Check corpses
             if (!M32_Options.AutoLootCorpses)
             {
-                if (item.HasTag("DynamicObjectsTable:Corpses"))
+                if (item.GetInventoryCategory() == "Corpses")
                     return false;
             }
 
@@ -370,7 +370,7 @@ namespace M32_QoL
             }
 
             // Check if in combat and combat looting is disabled
-            if (!M32_Options.AutoLootInCombat && IsInCombat(player))
+            if (!M32_Options.AutoLootInCombat && player.IsInCombat())
                 return false;
 
             return true;
@@ -395,35 +395,5 @@ namespace M32_QoL
             }
         }
 
-        private bool IsInCombat(GameObject obj)
-        {
-            if (obj == null) return false;
-
-            try
-            {
-                // Check if there are any hostile creatures nearby
-                Cell cell = obj.GetCurrentCell();
-                if (cell == null) return false;
-
-                Zone zone = cell.ParentZone;
-                if (zone == null) return false;
-
-                // Check for nearby hostiles
-                foreach (GameObject other in zone.GetObjects())
-                {
-                    if (other == null || other.IsPlayer()) continue;
-                    if (!other.IsCreature) continue;
-
-                    if (other.IsHostileTowards(obj))
-                        return true;
-                }
-
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
-        }
     }
 }

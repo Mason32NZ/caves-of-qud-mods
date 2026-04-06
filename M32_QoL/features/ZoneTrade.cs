@@ -463,6 +463,13 @@ namespace M32_QoL
             if (a.Blueprint != b.Blueprint) return false;
             if (a.HasTag("Unique") || b.HasTag("Unique")) return false;
 
+            // Never stack items that have a cell (battery) in them
+            EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
+            EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
+            if ((socketA != null && socketA.Cell != null) || 
+                (socketB != null && socketB.Cell != null))
+                return false;
+
             try
             {
                 LiquidVolume volA = a.LiquidVolume;
