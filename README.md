@@ -8,7 +8,7 @@ Trade with all merchants at once, auto loot as you go, auto stack things for a c
 
 ### Zone Trade `[Shift+T]`
 
-Trade with **all friendly merchants in your current zone** at once. No more walking between vendors to find who has what you need (love too all my metamorphic polygel farmers). One keypress opens a consolidated trade window with every nearby merchant's inventory.
+Trade with all friendly merchants in your current zone at once. No more walking between vendors to find who has what you need (love too all my metamorphic polygel farmers). One keypress opens a consolidated trade window with every nearby merchant's inventory.
 
 - Automatically selects the merchant with the best services (identify, repair, recharge) as the host merchant
 - Closes trade window after trade for all those fast bois out there (and totally not to avoid weird bugs)
