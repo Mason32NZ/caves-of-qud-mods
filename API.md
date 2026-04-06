@@ -1,116 +1,60 @@
-# Caves of Qud Modding API Documentation
+# Caves of Qud Modding API Reference
 
-Compiled from: the official wiki (wiki.cavesofqud.com/wiki/Modding:Overview and linked articles), decompiled mod source code, decompiled Assembly-CSharp.dll (via ilspycmd), and trial-and-error.
-
-**Last Updated**: April 2026 (CoQ Build 2.0.2xx+)
+**Source**: Decompiled Assembly-CSharp.dll + Official Wiki + Trial-and-Error  
+**Target**: CoQ Build 2.0.2xx+
 
 ---
 
 ## CRITICAL PITFALLS
 
-- `IPlayerMutator.mutate` is **lowercase** — the method is `mutate`, not `Mutate`
-- `GameObject.Value` returns **double**, not int
-- `Inventory.AddObject(item, null)` — second param is string/null, **not** bool
-- `Inventory.RemoveObject(item, null)` — second param is IEvent/null, **not** bool
-- Use `GameObject.ID` (uppercase), not deprecated `.id`
-- `TradeScreen` close method is `"Hide"` or `"Cleanup"`, **not** `"OnExit"`
-- `GameObjectFactory.Factory.CreateObject("Base_NPC")` — **"Base_NPC" is not a valid blueprint**
-- `[HasOptionFlagUpdate]` must be on a **static** class
-- Without `WantEvent` returning true for an event, `HandleEvent` will **never** be called
-- `GameObject.IsModified()` **does not exist** — use `HasPart<Modification>()` or `HasPart<ModBase>()` instead
-- **Modifications are individual parts, not a single "Modification" part** — items with `ModSharp`, `ModHeavy`, etc. are separate part types implementing `IModification`. Use `PartsList.Where(p => p is IModification)` to find all mods on an item
-- **Prefer static methods over async void methods for Harmony patches** — static methods are much more reliable to patch. If you need to modify behavior in an async void method, look for the static method it calls and patch that instead (e.g., patch `PerformOffer` return value instead of trying to intercept `HandleMenuOption`)
-- **SingletonWindowBase<T>.instance reflection often fails** — use alternative approaches like modifying return values or patching the method that uses the instance
-- See "Harmony Patching Lessons Learned" section for more detailed guidance
+| Pitfall | Wrong | Correct |
+|---------|-------|---------|
+| PlayerMutator method | `Mutate()` | `mutate()` (lowercase!) |
+| GameObject.Value type | `int` | `double` |
+| Inventory.AddObject params | `(item, false)` | `(item, null)` — second is IEvent |
+| Inventory.RemoveObject params | `(item, false)` | `(item, null)` |
+| GameObject.ID | `.id` | `.ID` (uppercase) |
+| TradeScreen close method | `"OnExit"` | `"Hide"` or `"Cleanup"` |
+| Blueprint "Base_NPC" | Valid | **Invalid** — use actual blueprint names |
+| `[HasOptionFlagUpdate]` | On any class | **Must be on static class** |
+| WantEvent returns false | HandleEvent works | **HandleEvent never called** |
+| `IsModified()` | Exists | **Doesn't exist** — use `HasPart<Modification>()` |
+| Modification part | `HasPart("Modification")` | **Wrong** — mods are separate parts (`ModSharp`, `ModHeavy`, etc.) |
+| DroppedByPlayer | Turn count | **Flag (value=1)** — track turn yourself |
+| LiquidVolume.MaxVolume < 0 | Container | **Puddle on ground** — not a container |
 
 ---
 
 ## Mod File Structure
 
-Files go anywhere inside the mod folder. The game picks them up by extension/root tag:
-
 ```
 MyMod/
-├── manifest.json         ← mod identity (required)
-├── workshop.json         ← Steam Workshop config (optional)
-├── modconfig.json        ← texture shader config (optional)
-├── Commands.xml          ← keybind definitions (root: <commands>)
-├── Options.xml           ← options menu entries (root: <options>)
-├── SomeName.xml          ← any other XML (root tag determines type)
-├── SomeName.cs           ← C# code (any filename works)
-└── Textures/             ← tile images (.png)
+├── manifest.json      # Mod identity
+├── Commands.xml       # Keybinds
+├── Options.xml        # Settings
+├── *.cs               # C# code (any filename)
+└── Textures/          # Tile images
 ```
 
 ---
 
-## manifest.json
+## Adding Code to Player
 
-```json
-{
-    "ID": "Author_ModName",
-    "Title": "{{M|My Mod}}",
-    "Description": "What the mod does.",
-    "Version": "1.0.0",
-    "Author": "AuthorName",
-    "Tags": "Creatures,QoL",
-    "PreviewImage": "preview.png",
-    "LoadBefore": "OtherModID",
-    "LoadAfter": ["ModA", "ModB"],
-    "Dependencies": {
-        "RequiredModID": ">=1.0.0"
-    },
-    "Directories": [
-        { "Paths": ["/Common/", "/Assets/"] },
-        { "Path": "/NewContent/", "Build": ">=2.0.210" },
-        {
-            "Path": "/AddonContent/",
-            "Dependency": "OtherMod",
-            "Options": ["OptionMyMod_EnableAddon == Yes"]
-        }
-    ]
-}
-```
-
-Key fields:
-- `LoadOrder` — obsolete in build 210+, use `Dependencies` instead
-- `Directories` — for conditional loading based on game version, options, or other mods
-- Version ranges: `"*"`, `">=1.0.0"`, `"1.0.* "`, `"2.0.208 - 3.0.0"`, `">=2 <5"`
-
----
-
-## C# Setup
-
-The game compiles `.cs` files in the mod folder at runtime (C# 9.0). No project file needed in the mod folder itself — use Visual Studio with a `Mods.csproj` generated by the game's "Modding Utilities" → "Write Mods.csproj file" for IDE support.
-
-Reference assembly: `Assembly-CSharp.dll` at `[Steam]\steamapps\common\Caves of Qud\CoQ_Data\Managed`
-
----
-
-## Adding Code to the Player
-
-### New games: PlayerMutator
+**Use both** to cover new games and loaded saves:
 
 ```csharp
-using XRL;
-using XRL.World;
-
+// New games
 [PlayerMutator]
 public class MyMod_PlayerMutator : IPlayerMutator
 {
-    public void mutate(GameObject player)  // lowercase 'm' — this is critical!
+    public void mutate(GameObject player)  // lowercase!
     {
-        player.RequirePart<MyMod_PlayerPart>();
+        MyMod_HarmonyInitializer.Init();
+        player.RequirePart<MyMod_Part>();
     }
 }
-```
 
-### Loaded saves: CallAfterGameLoaded
-
-```csharp
-using XRL;
-using XRL.Core;
-using XRL.World;
-
+// Loaded saves
 [HasCallAfterGameLoaded]
 public class MyMod_LoadGameHandler
 {
@@ -118,409 +62,73 @@ public class MyMod_LoadGameHandler
     public static void AfterLoaded()
     {
         if (The.Player == null) return;
-        The.Player.RequirePart<MyMod_PlayerPart>();
+        MyMod_HarmonyInitializer.Init();
+        The.Player.RequirePart<MyMod_Part>();
     }
 }
 ```
-
-> Use **both** together to cover new games and loaded saves.
 
 ---
 
 ## Part Types
 
-| Type | Namespace | Use case |
-|------|-----------|----------|
-| `IPart` | `XRL.World.Parts` | General part on any object |
-| `IPlayerPart` | `XRL.World.Parts` | Follows player across body changes |
-| `IActivePart` | `XRL.World.Parts` | Parts only active under conditions |
-| `IPoweredPart` | `XRL.World.Parts` | Parts requiring power/energy |
-| `IScribedPart` | `XRL.World` | **Recommended for new mods** — easy field migration |
-| `IZonePart` | `XRL.World.ZoneParts` | Parts attached to zones |
-| `BaseMutation` | — | Individual mutation |
-| `IModification` | — | Item mods |
-| `IGrenade` | — | Grenade behaviour |
-
-**`IScribedPart` is strongly recommended** for new mods — it serializes field names alongside values, so you can add/remove fields between mod versions without breaking saves.
-
----
-
-## Part Lifecycle
-
-```csharp
-[Serializable]
-public class MyPart : IPart
-{
-    // Priority constants (affects serialization and event cascade order)
-    public override int Priority => IPart.PRIORITY_MEDIUM; // 45000 default
-    // PRIORITY_SKIP = int.MinValue      (skip event cascades)
-    // PRIORITY_VERY_LOW = 15000
-    // PRIORITY_LOW = 30000
-    // PRIORITY_MEDIUM = 45000 (default)
-    // PRIORITY_HIGH = 60000
-    // PRIORITY_VERY_HIGH = 75000
-    // PRIORITY_INTEGRAL = 90000
-    
-    public override void Attach()
-    {
-        // Called when part is added to an object
-        // Set up ParentObject shortcuts here
-        base.Attach();
-    }
-
-    public override void Remove()
-    {
-        // Called when part is removed from an object
-        // Clean up ParentObject shortcuts here
-        base.Remove();
-    }
-
-    public override void Initialize()
-    {
-        // Called after Attach(), use for initialization logic
-        base.Initialize();
-    }
-    
-    public override void AddedAfterCreation()
-    {
-        // Called when part is added after object creation
-        base.AddedAfterCreation();
-    }
-
-    public override bool WantTurnTick() => false; // opt-in to TurnTick
-    public override bool WantTenTurnTick() => false; // opt-in to 10-turn tick
-    public override bool WantHundredTurnTick() => false; // opt-in to 100-turn tick
-
-    public override void TurnTick(long TurnNumber, int Amount)
-    {
-        // Called every turn the object takes
-    }
-    
-    public override void TenTurnTick(long TurnNumber, int Amount)
-    {
-        // Called every 10 turns
-    }
-    
-    public override void HundredTurnTick(long TurnNumber, int Amount)
-    {
-        // Called every 100 turns
-    }
-
-    public override bool Render(RenderEvent E)
-    {
-        // Called when object is rendered on screen
-        return base.Render(E);
-    }
-    
-    public override bool OverlayRender(RenderEvent E)
-    {
-        // Called for overlay rendering
-        return base.OverlayRender(E);
-    }
-    
-    public override bool FinalRender(RenderEvent E, bool bAlt)
-    {
-        // Called for final render pass
-        return base.FinalRender(E, bAlt);
-    }
-
-    public override bool SameAs(IPart p)
-    {
-        return false; // return false to prevent deduplication
-    }
-    
-    public override void ObjectLoaded()
-    {
-        // Called after object is loaded from save
-        base.ObjectLoaded();
-    }
-}
-```
+| Type | Use |
+|------|-----|
+| `IScribedPart` | **Recommended** — easy field migration |
+| `IPart` | General part |
+| `IPlayerPart` | Follows player across body changes |
+| `IActivePart` | Only active under conditions |
+| `IZonePart` | Attached to zones |
 
 ---
 
 ## Event System
 
-### Standard Events (String Events)
-
-Register in `Register()`, handle in `FireEvent()`:
-
-```csharp
-public override void Register(GameObject Object, IEventRegistrar Registrar)
-{
-    Registrar.Register("AwardXP");          // string event
-    Registrar.Register("CommandMyModCmd");  // command string event
-    Registrar.Register(The.Game, ZoneActivatedEvent.ID); // on another object
-    base.Register(Object, Registrar);
-}
-
-public override bool FireEvent(Event E)
-{
-    if (E.ID == "AwardXP")
-    {
-        int amount = E.GetIntParameter("Amount");
-        // ...
-    }
-    if (E.ID == "CommandMyModCmd")
-    {
-        // handle keybind command
-        return false; // false = stop propagation
-    }
-    return base.FireEvent(E); // true = continue propagation
-}
-```
-
-Firing a string event:
-```csharp
-Event e = Event.New("AwardXP", "Amount", 50);
-// or set params separately:
-e.SetParameter("Amount", 50);
-player.FireEvent(e);
-```
-
-### Minimal Events (MinEvents / Typed Events)
-
-The modern system. Register in `WantEvent()`, handle in `HandleEvent()`:
+### WantEvent + HandleEvent (Preferred)
 
 ```csharp
 public override bool WantEvent(int ID, int cascade)
 {
-    // MUST return true for HandleEvent to be called
     return base.WantEvent(ID, cascade)
-        || ID == EndTurnEvent.ID
-        || ID == ZoneActivatedEvent.ID
         || ID == CommandEvent.ID
-        || ID == ObjectCreatedEvent.ID
         || ID == BeforeTakeActionEvent.ID
-        || ID == AddedToInventoryEvent.ID
-        || ID == AutoexploreObjectEvent.ID
-        || ID == AfterGameLoadedEvent.ID
-        || ID == GetShortDescriptionEvent.ID;
-}
-
-public override bool HandleEvent(EndTurnEvent E)
-{
-    // handle it
-    return base.HandleEvent(E);
+        || ID == AutoexploreObjectEvent.ID;  // MUST return true for HandleEvent
 }
 
 public override bool HandleEvent(CommandEvent E)
 {
-    if (E.Command == "MyModCommandID")
+    if (E.Command == "MyModCommand")
     {
-        // handle keybind command
-        return false;
+        // handle it
+        return false;  // stop propagation
     }
-    return base.HandleEvent(E);
+    return base.HandleEvent(E);  // continue propagation
 }
 ```
 
-Firing a MinEvent:
-```csharp
-GiveDramsEvent E = GiveDramsEvent.FromPool(Actor: player, Drams: 50);
-E.Liquid = "water";
-player.HandleEvent(E);
-```
+### Common Events
 
-### Event Pool Management
-
-```csharp
-// Events use pooling for performance. Manual management:
-Event.PinCurrentPool();           // mark current pool position
-Event.ResetToPin();               // reset to pinned position
-Event.ResetPool();                // reset all event pools
-MinEvent.ResetPools();            // reset MinEvent pools
-
-// StringBuilder pooling (for performance)
-StringBuilder sb = Event.NewStringBuilder("initial text");
-// sb is automatically returned to pool on ResetPool()
-
-// List pooling
-List<GameObject> list = Event.NewGameObjectList();
-List<Cell> cells = Event.NewCellList();
-```
-
-### Common MinEvents (Typed Events)
-
-```csharp
-// Lifecycle events
-ObjectCreatedEvent.ID           // Object is being created
-AfterObjectCreatedEvent.ID      // After object creation complete
-BeforeDestroyObjectEvent.ID     // Before object is destroyed
-ZoneThawedEvent.ID              // Zone is thawed from frozen state
-AfterGameLoadedEvent.ID         // After game is loaded from save
-
-// Turn events
-EndTurnEvent.ID                 // End of turn
-BeforeTakeActionEvent.ID        // Before taking an action
-BeforeBeginTakeActionEvent.ID   // Before beginning action
-AfterTravelEvent.ID             // After traveling
-
-// Combat events
-BeforeMeleeAttackEvent.ID       // Before melee attack
-BeforeApplyDamageEvent.ID       // Before damage is applied
-AttackerDealingDamageEvent.ID   // Attacker dealing damage
-AttackerDealtDamageEvent.ID     // Attacker dealt damage
-AfterShieldBlockEvent.ID        // After shield blocks
-BeforeDieEvent.ID               // Before death
-AfterDieEvent.ID                // After death
-BeforeDeathRemovalEvent.ID      // Before corpse removal
-
-// Inventory events
-AddedToInventoryEvent.ID        // Added to inventory
-AfterContentsTakenEvent.ID      // After contents taken
-InventoryActionEvent.ID         // Inventory action performed
-GetInventoryActionsEvent.ID     // Get available inventory actions
-
-// Movement/Movement
-AttemptToLandEvent.ID           // Attempting to land
-AfterMoveFailedEvent.ID         // After move fails
-
-// Zone events
-ZoneActivatedEvent.ID           // Zone is activated
-AfterZoneBuiltEvent.ID          // After zone is built
-
-// UI/Interaction
-BeforeConversationEvent.ID      // Before conversation
-AfterConversationEvent.ID       // After conversation
-GetShortDescriptionEvent.ID     // Get item description
-AutoexploreObjectEvent.ID       // Autoexplore considering object
-
-// Stats/Value
-StatChangeEvent.ID              // Stat value changed
-GetExtrinsicValueEvent.ID       // Get item value
-AdjustValueEvent.ID             // Adjust item value
-GetCarriedWeightEvent.ID        // Get carried weight
-FlushWeightCacheEvent.ID        // Flush weight cache
-
-// Special
-CommandEvent.ID                 // Command fired (keybind)
-```
-
-### Event Return Values
-
-- `return true` — continue propagation (other parts still receive event)
-- `return false` — stop propagation (no further parts receive event)
-
-### Custom MinEvents
-
-```csharp
-// Event definition (pooled for performance)
-public class MyModEvent : ModPooledEvent<MyModEvent>
-{
-    public static readonly int ID = MinEvent.RegisterEvent<MyModEvent>();
-    public static readonly int CascadeLevel = MinEvent.CASCADE_EQUIPMENT;
-    public string Result;
-
-    public static string GetFor(GameObject obj)
-    {
-        var E = FromPool();
-        obj.HandleEvent(E);
-        return E.Result;
-    }
-
-    public override void Reset()
-    {
-        base.Reset();
-        Result = null;
-    }
-
-    public override int GetCascadeLevel() => CascadeLevel;
-}
-
-// Handler implements IModEventHandler<T>
-public class MyPart : IPart, IModEventHandler<MyModEvent>
-{
-    public override bool WantEvent(int ID, int cascade)
-    {
-        return base.WantEvent(ID, cascade) || ID == MyModEvent.ID;
-    }
-
-    public bool HandleEvent(MyModEvent E)
-    {
-        E.Result = "handled";
-        return true;
-    }
-}
-
-// Non-pooled singleton event (for simple events)
-public class MySimpleEvent : SingletonEvent<MySimpleEvent>
-{
-    public static readonly int ID = MinEvent.RegisterEvent<MySimpleEvent>();
-    public string Data;
-}
-```
-
-### Cascade Levels
-
-```csharp
-CASCADE_NONE                        // 0 - don't cascade
-CASCADE_EQUIPMENT                   // 1 - cascade to equipped items
-CASCADE_INVENTORY                   // 2 - cascade to inventory
-CASCADE_SLOTS                       // 4 - cascade to slotted objects (socketed cells)
-CASCADE_COMPONENTS                  // 8 - cascade to component objects (mine explosives)
-CASCADE_EXCEPT_THROWN_WEAPON        // 16 - exclude thrown weapon
-CASCADE_STOP_AT_ZONE                // 32 - prevent cascade to zone cells
-CASCADE_STOP_AT_REGISTRY            // 64 - prevent cascade beyond registry
-CASCADE_WORLD_MAP_INVENTORY         // 128 - allow cascade on world map
-CASCADE_DESIRED_OBJECT              // 256 - skip to dispatch for game objects
-CASCADE_DESIRED_SYSTEM              // 512 - skip to dispatch for game systems
-CASCADE_ALL                         // 15 - all standard cascades (EQUIP|INV|SLOTS|COMPONENTS)
-```
+| Event | When |
+|-------|------|
+| `CommandEvent.ID` | Keybind pressed |
+| `BeforeTakeActionEvent.ID` | Before player action |
+| `EnteredCellEvent.ID` | Player enters cell |
+| `AutoexploreObjectEvent.ID` | Autoexplore considers object |
+| `AfterGameLoadedEvent.ID` | Save loaded |
+| `GetShortDescriptionEvent.ID` | Get item description |
 
 ---
 
-## Commands.xml / Keybinds
+## Commands.xml (Keybinds)
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <commands>
-    <!-- Simple command in a custom category -->
-    <command ID="MyMod_MyCommand" DisplayText="Do The Thing"
-             Category="My Mod" />
-
-    <!-- Command with default keyboard bind -->
-    <command ID="MyMod_AnotherCommand" DisplayText="Another Thing"
+    <command ID="MyMod_Command" DisplayText="Do Thing"
              Category="My Mod" Layer="Adventure" Auto="Down">
-        <keyboardBind Modifier="shift" Key="f"/>
-    </command>
-
-    <!-- With gamepad support -->
-    <command ID="MyMod_GamepadCmd" DisplayText="Gamepad Command"
-             Category="My Mod" Layer="Adventure" Auto="Down">
-        <keyboardBind Key="s"/>
-        <gamepadBind Button="select"/>
+        <keyboardBind Modifier="ctrl" Key="t"/>
     </command>
 </commands>
-```
-
-When a player presses the key, the command fires as an event on the player. Listen for it in a part:
-
-```csharp
-// Option A: Register in Register() + handle in FireEvent()
-public override void Register(GameObject Object, IEventRegistrar Registrar)
-{
-    Registrar.Register("MyMod_MyCommand");
-    base.Register(Object, Registrar);
-}
-
-public override bool FireEvent(Event E)
-{
-    if (E.ID == "MyMod_MyCommand") { /* do stuff */ return false; }
-    return base.FireEvent(E);
-}
-
-// Option B: WantEvent CommandEvent + HandleEvent(CommandEvent) [preferred]
-public override bool WantEvent(int ID, int cascade)
-{
-    return base.WantEvent(ID, cascade) || ID == CommandEvent.ID;
-}
-
-public override bool HandleEvent(CommandEvent E)
-{
-    if (E.Command == "MyMod_MyCommand") { /* do stuff */ return false; }
-    return base.HandleEvent(E);
-}
 ```
 
 ---
@@ -530,59 +138,26 @@ public override bool HandleEvent(CommandEvent E)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <options>
-    <!-- Checkbox (Yes/No) -->
-    <option ID="Option_MyMod_EnableFeature" DisplayText="Enable Feature"
-            Category="Mods: My Mod" Type="Checkbox" Default="Yes">
-        <helptext>Whether to enable the feature.</helptext>
+    <option ID="Option_MyMod_Enable" DisplayText="Enable Feature"
+            Category="Mod: My Mod" Type="Checkbox" Default="Yes">
+        <helptext>Description.</helptext>
     </option>
-
-    <!-- Combo (string selector) -->
-    <option ID="Option_MyMod_Mode" DisplayText="Mode"
-            Category="Mods: My Mod" Type="Combo"
-            Values="Fast,Normal,Slow|Plodding" Default="Normal"/>
-    <!-- Values: left of | is stored value, right of | is display text -->
-
-    <!-- Slider (integer) -->
     <option ID="Option_MyMod_Amount" DisplayText="Amount"
-            Category="Mods: My Mod" Type="Slider"
+            Category="Mod: My Mod" Type="Slider"
             Min="0" Max="100" Increment="5" Default="50"
-            Requires="Option_MyMod_EnableFeature==Yes"/>
-
-    <!-- Button -->
-    <option ID="Option_MyMod_Configure" DisplayText="Configure..."
-            Category="Mods: My Mod" Type="Button"
-            OnClick="MyNamespace.MyClass.OnConfigureClick"/>
+            Requires="Option_MyMod_Enable==Yes"/>
 </options>
 ```
 
-`Requires` syntax: `"OptionID==Value,OptionID2!=Value"` — hides option unless all conditions met.
-
-### Reading Options in Code
-
-```csharp
-// Traditional approach — always returns string
-string val = XRL.UI.Options.GetOption("Option_MyMod_EnableFeature"); // returns "Yes" or "No"
-string val = XRL.UI.Options.GetOption("Option_MyMod_Amount", Default: "50");
-bool enabled = val.EqualsNoCase("Yes");
-int amount = Convert.ToInt32(XRL.UI.Options.GetOption("Option_MyMod_Amount"));
-bool boolOpt = XRL.UI.Options.GetOptionBool("Option_MyMod_EnableFeature");
-```
-
-### OptionFlag (Preferred - Auto-Updated)
+### OptionFlag (Auto-synced)
 
 ```csharp
 [HasOptionFlagUpdate(Prefix = "Option_MyMod_")]  // static class required
 public static class MyModOptions
 {
-    [OptionFlag] public static bool EnableFeature;  // maps to Option_MyMod_EnableFeature
-    [OptionFlag] public static int Amount;          // maps to Option_MyMod_Amount
-    [OptionFlag] public static string Mode;         // maps to Option_MyMod_Mode
-
-    [OptionFlagUpdate]  // called after flags are updated
-    public static void OnUpdate()
-    {
-        // react to option changes
-    }
+    [OptionFlag] public static bool Enable;
+    [OptionFlag] public static int Amount;
+    [OptionFlag] public static string Mode;
 }
 ```
 
@@ -591,97 +166,42 @@ public static class MyModOptions
 ## AllowStaticRegistration
 
 ```csharp
-// When true: Register() is NOT serialized, instead re-called every save load
-// When false (default): Register() is serialized once when part is added
+// Re-register on every save load (for player parts)
 public override bool AllowStaticRegistration() => true;
 ```
 
-Use `AllowStaticRegistration() => true` for player parts that need to always
-re-register commands after loading saves.
-
 ---
 
-## Serialization (Saving/Loading)
+## Serialization
 
-### Basic (Recommended)
-
-```csharp
-[Serializable]  // serializes all public fields automatically
-public class MyPart : IPart
-{
-    public string MyString = "default";   // serialized
-    public int MyInt = 0;                 // serialized
-    private string _private = "x";        // NOT serialized (private)
-
-    [SerializeField]
-    private string _secretID;             // serialized (explicitly opted in)
-
-    [NonSerialized]
-    public List<GameObject> _cache;        // NOT serialized (explicitly opted out)
-}
-```
-
-### IScribedPart (Strongly Recommended for New Code)
+### IScribedPart (Recommended)
 
 ```csharp
 [Serializable]
-public class MyPart : IScribedPart  // can add/remove fields freely
+public class MyPart : IScribedPart  // Fields auto-serialized with names
 {
-    public string MyField = "hello";
-    public int MyInt = 42;
-    // No custom Read/Write needed — handles migration automatically
+    public string MyField = "default";  // Can add/remove fields freely
 }
 ```
 
-### Custom Read/Write
+### IPart (Manual)
 
 ```csharp
 [Serializable]
 public class MyPart : IPart
 {
-    [NonSerialized]
-    public List<GameObject> Items = new List<GameObject>();
-
+    [NonSerialized] public List<GameObject> _cache;  // Not saved
+    
     public override void Write(GameObject Basis, SerializationWriter Writer)
     {
-        Writer.WriteGameObjectList(Items);    // write GameObject list
-        Writer.Write(myString);              // write string
-        Writer.Write(myInt);                 // write int
-        Writer.Write(myGuid);                // write Guid
-        Writer.WriteComposite(myList);       // write IComposite list
-        Writer.WriteNamedFields(this, GetType()); // write all fields by name
-        base.Write(Basis, Writer);
+        Writer.Write(myString);
+        Writer.Write(myInt);
     }
-
+    
     public override void Read(GameObject Basis, SerializationReader Reader)
     {
-        // Version-aware reading
-        if (Reader.ModVersions.TryGetValue("MyModID", out Version ver))
-        {
-            if (ver >= new Version("2.0.0"))
-            {
-                // new format
-            }
-        }
-        Reader.ReadGameObjectList(Items);
         myString = Reader.ReadString();
         myInt = Reader.ReadInt32();
-        myGuid = Reader.ReadGuid();
-        myList = Reader.ReadCompositeList<MyType>();
-        Reader.ReadNamedFields(this, GetType());
-        base.Read(Basis, Reader);
-    }
-
-    // Called after all parts have been deserialized
-    public override void FinalizeRead(GameObject Basis)
-    {
-        base.FinalizeRead(Basis);
-    }
-
-    // Handle deserialization errors
-    public override void ReadError(GameObject Basis, SerializationReader Reader, Exception ex)
-    {
-        base.ReadError(Basis, Reader, ex);
     }
 }
 ```
@@ -690,809 +210,99 @@ public class MyPart : IPart
 
 ## GameObject API
 
-### Getting/Adding/Requiring Parts
+### Getting/Checking Parts
 
 ```csharp
-// Generic type-safe methods (preferred)
 MyPart p = go.GetPart<MyPart>();
-if (go.TryGetPart(out MyPart p)) { ... }
-if (go.TryGetPartDescendedFrom(out MyPart p)) { ... } // finds derived types
-MyPart p = go.GetPartDescendedFrom<MyPart>();
-List<T> parts = go.GetPartsDescendedFrom<MyPart>();
-
-// Add parts
-go.AddPart<IPart>(part);           // add existing part instance
-go.AddPart<MyPart>();              // create and add new part
-MyPart p = go.RequirePart<MyPart>(); // adds only if not present
-go.RemovePart<MyPart>();
-go.RemovePart(this);               // from inside a part
-
-// Check parts
 bool has = go.HasPart<MyPart>();
 bool has = go.HasPart("PartName");
-bool has = go.HasPart(typeof(MyPart));
-bool has = go.HasPartDescendedFrom<MyPart>();
-bool hasSame = go.HasPartSameAs(part); // checks SameAs() equality
-
-// Get all parts
-foreach (IPart part in go.PartsList) { ... }
-int partCount = go.PartsList.Count;
+go.RequirePart<MyPart>();  // Add if not present
+go.RemovePart<MyPart>();
 ```
 
 ### Identity & State
 
 ```csharp
 bool isPlayer = go.IsPlayer();
-bool isPlayerLed = go.IsPlayerLed();
 bool isCreature = go.IsCreature;
-bool isOK = go.IsOK();             // alive and valid (not destroyed)
-bool isValid = go.IsValid();       // null-safe validity check
-bool isHidden = go.IsHidden;
+bool isOK = go.IsOK();
+bool isValid = go.IsValid();
 bool isOwned = go.IsOwned();
-bool isTrifling = go.IsTrifling;   // suppresses death messages etc.
-bool hasPropName = go.HasProperName;
-bool validate = GameObject.Validate(go); // null-safe check
-bool descends = go.GetBlueprint().DescendsFrom("BaseClass");
-
-// State flags
-bool isReal = go.IsReal;           // Physics?.IsReal ?? false
-bool isOrganic = go.IsOrganic;     // Physics?.Organic
-bool isScenery = go.IsScenery;     // (Render?.RenderLayer ?? 0) <= 0
-bool isCurrency = go.IsCurrency;   // checks Currency property
-bool takeable = go.Takeable;       // Physics?.Takeable ?? false
-bool isImplant = go.IsImplant;     // HasPart<CyberneticsBaseItem>()
-GameObject implantee = go.Implantee; // GetPart<CyberneticsBaseItem>()?.ImplantedOn
-
-// Movement flags
-bool slimewalking = go.Slimewalking;
-bool polypwalking = go.Polypwalking;
-bool strutwalking = go.Strutwalking;
-bool reefer = go.Reefer;
-
-// Temperature
-int temperature = go.Temperature;  // Physics?.Temperature ?? 0
-
-// Combat state
-bool inCombat = (go.Flags & GameObject.FLAG_COMBAT) != 0;
-bool isGraveyard = (go.Flags & GameObject.FLAG_GRAVEYARD) != 0;
-bool isTemporary = (go.Flags & GameObject.FLAG_TEMPORARY) != 0;
+string owner = go.Owner;
+bool isHostile = go.IsHostileTowards(other);
+Brain.AllegianceLevel level = go.GetAllegianceLevel(factionName);
+// Member = friendly/allied, Neutral, None/Unknown, Hostile, Enemy
 ```
 
-### Name / Display
+### Properties & Tags
 
 ```csharp
-string name = go.DisplayName;
-string stripped = go.ShortDisplayNameStripped; // no color codes
-string the = go.t();  // "the goblin"
-string The = go.T();  // "The goblin"
-string it = go.it;    // "it"/"he"/"she"
-string verb = go.GetVerb("do");  // conjugated verb
-string does = go.does("run");    // "runs"/"run"
-```
-
-### Properties
-
-```csharp
-// String
-string v = go.GetStringProperty("Name");
+string s = go.GetStringProperty("Name");
 go.SetStringProperty("Name", "value");
-go.SetStringProperty("Name", null, RemoveIfNull: true);
-bool h = go.HasStringProperty("Name");
-
-// Int
-int v = go.GetIntProperty("Name");
-go.SetIntProperty("Name", 42);
-go.RemoveIntProperty("Name");
-bool h = go.HasIntProperty("Name");
-
-// Property OR tag (checks both)
-bool h = go.HasPropertyOrTag("Name");
-string v = go.GetPropertyOrTag("Name");
+int i = go.GetIntProperty("Number");
+go.SetIntProperty("Number", 42);
+bool has = go.HasStringProperty("Name");
+bool has = go.HasPropertyOrTag("Name");
+bool hastag = go.HasTag("TagName");
 ```
 
-### Values / Stats
+### Inventory
 
 ```csharp
-double value = go.Value;       // double — affected by commerce
-int weight = go.Weight;
-string id = go.ID;             // use ID, not deprecated .id
-int count = go.Count;          // stack count
-
-// Stat system
-Stat stat = go.GetStat("Hitpoints");
-stat.BaseValue += 10;
-int mod = go.StatMod("Ego");
-bool has = go.HasStat("StatName");
-int free = go.GetFreeDrams(); // fresh water owned
+Inventory inv = go.GetPart<Inventory>();
+IEnumerable<GameObject> items = inv.GetObjects();
+IEnumerable<GameObject> items = inv.GetObjectsDirect();  // no validation
+int count = inv.GetObjectCountDirect();
+GameObject added = inv.AddObject(item, null);  // second param is IEvent
+inv.RemoveObject(item, null);
+bool has = inv.HasObject(item);
 ```
 
-### Tags
-
-```csharp
-bool h = go.HasTag("Grenade");
-bool h = go.HasTag("DynamicObjectsTable:Corpses");
-```
-
-### Inventory / Equipment
-
-```csharp
-IEnumerable<GameObject> inv = go.GetInventory();
-IEnumerable<GameObject> inv = go.Inventory.GetObjects();
-int count = go.Inventory.GetObjectCountDirect();
-IEnumerable<GameObject> all = go.WithContents(); // recursive (equipped + inv)
-int maxCarry = go.GetMaxCarriedWeight();
-int bodyWeight = go.Body.GetWeight();
-```
-
-### Cell / Zone
+### Cell/Zone
 
 ```csharp
 Cell cell = go.CurrentCell;
 Zone zone = go.CurrentZone;
-Cell cell2 = go.GetCurrentCell();
+Zone activeZone = The.ActiveZone;
+IEnumerable<GameObject> objs = zone.GetObjects();
 ```
 
-### Combat / Relationships
+### Combat/Relationships
 
 ```csharp
 bool hostile = go.IsHostileTowards(other);
-bool led = go.IsLedBy(leader);
-bool adjacent = go.InSameOrAdjacentCellTo(other);
-bool los = go.HasLOSTo(other);
-int dist = player.DistanceTo(other);
-string dir = Directions.GetUITextArrowForDirection(go.GetDirectionToward(other));
-bool enemies = go.ArePerceptibleHostilesNearby(Action: myAction);
-
-// Faction relationships
-Brain.AllegianceLevel level = go.GetAllegianceLevel(factionName);
-// AllegianceLevel values: Member (friendly/allied), Neutral, None (unknown), Hostile, Enemy
-// Useful for checking if you should skip owned items (don't steal from friends)
-if (level == Brain.AllegianceLevel.Member)
-    // Friendly - skip owned items
-if (level == Brain.AllegianceLevel.Hostile || level == Brain.AllegianceLevel.Enemy)
-    // Enemy - allow picking up their items
-```
-
-### Misc
-
-```csharp
-go.Twiddle();             // "use" the item
-go.Indicate(hostile);    // flash-highlight
-go.PlayWorldSound("Sounds/sfx_name");
-go.ForeachPartDescendedFrom<T>(action);
-bool busy = go.IsBusy();
-bool understood = go.Understood();
-bool interesting = go.IsInteresting();
-bool shouldAutoget = go.ShouldAutoget();
-go.RemoveFromContext();  // remove from current cell/inventory
-go.Destroy(Silent: true);
-bool isStasis = go.IsInStasis();
-bool nowhere = go.IsNowhere();
-bool graveyard = go.IsInGraveyard();
-bool inZone = go.InZone(zone);
-GameObject one = go.RemoveOne(); // remove one from a stack
-```
-
----
-
-## Detecting Non-Lootable World Objects
-
-Some objects in Caves of Qud appear to be items but should NOT be picked up by auto-loot systems:
-
-### Harvestable Objects
-- **Check**: `item.GetPart("Harvestable") != null`
-- **Examples**: Plants, trees, mushrooms, flowers that can be harvested for resources
-- **Note**: These are world decorations meant to be walked over to harvest, NOT inventory items
-
-### Garbage/Trash Objects
-- **Check**: `item.GetPart("Garbage") != null`
-- **Examples**: Garbage, Klanq Garbage
-- **Blueprints**: "Garbage", "Klanq Garbage"
-- **Trap**: These have `Takeable="true"` but shouldn't be looted!
-- **Markers**: 
-  - `<part Name="Garbage" />` — the definitive marker (use this)
-  - `<stag Name="Garbage" />` — static tag (less reliable)
-  - XML comment: `<!-- Gettable terrain -->`
-- **Purpose**: World decoration, not inventory item
-
-### Rubble/Debris
-- **Check**: `!item.IsTakeable()` — caught by standard takeable check
-- **Examples**: Rubble
-- **Note**: These have `Takeable="false"`
-
-### NoAutoget Items
-- **Check**: `item.HasTagOrProperty("NoAutoget")`
-- **Examples**: Bouquet, HindrenClue quest items, Godshroom Cap
-- **Note**: Game's built-in marker for items that shouldn't be auto-picked
-
-### Summary Pattern for Auto-Loot
-
-```csharp
-// Check part-based exclusions (structural markers)
-if (item.GetPart("Harvestable") != null) return false;  // Plants/harvestables
-if (item.GetPart("Garbage") != null) return false;      // Trash/garbage
-
-// Check tag-based exclusions (metadata markers)
-if (item.HasTagOrProperty("NoAutoget")) return false;   // Game's exclusion marker
-
-// Check takeability (basic property)
-if (!item.IsTakeable()) return false;                    // Rubble/debris
-```
-
-### Why Check Parts Instead of Tags or Blueprints?
-
-**Parts** (`GetPart("Garbage")`):
-- Parts are class instances with behavior — more robust
-- Automatically inherited by variants (e.g., Klanq Garbage inherits Garbage part)
-- Structural identifier, not just metadata
-- Matches existing code patterns (`Harvestable` check)
-
-**Tags** (`HasTag("Garbage")`):
-- Tags can be added/removed at runtime
-- Static tags (`stag`) vs dynamic tags (`tag`) have subtle differences
-- Less reliable than parts
-
-**Blueprints** (`item.Blueprint == "Garbage"`):
-- String matching is fragile
-- New variants might not match naming patterns
-- Inheritance doesn't automatically propagate blueprint names
-- Less idiomatic to CoQ architecture
-
-**Conclusion**: Use `GetPart()` for structural identification, `HasTagOrProperty()` for game markers, avoid blueprint string matching.
-
----
-
-## DroppedByPlayer Property — Tracking Dropped Items
-
-The game's `DroppedByPlayer` property is used to mark items dropped by the player, but it has important limitations:
-
-### The Problem
-
-**CRITICAL**: `DroppedByPlayer` is a **flag** (value = 1), NOT a turn count!
-
-```csharp
-// WRONG — Treats the value as a turn number
-int dropTurn = item.GetIntProperty("DroppedByPlayer");  // Returns 1, not a turn!
-long turnsSinceDrop = currentTurn - dropTurn;  // Nonsense calculation
-```
-
-The game sets `DroppedByPlayer=1` as a simple boolean flag when the player drops an item. It does NOT record when the item was dropped.
-
-### The Solution
-
-Track the turn yourself with a custom property:
-
-```csharp
-// CORRECT — Use custom property to track drop turn
-if (item.HasIntProperty("DroppedByPlayer"))
-{
-    // First time seeing this dropped item — record the current turn
-    if (!item.HasIntProperty("MyMod_DroppedTurn"))
-    {
-        item.SetIntProperty("MyMod_DroppedTurn", (int)(The.Game?.Turns ?? 0));
-    }
-    
-    // Now you can calculate cooldown correctly
-    int dropTurn = item.GetIntProperty("MyMod_DroppedTurn");
-    long currentTurn = The.Game?.Turns ?? 0;
-    
-    if (currentTurn - dropTurn <= cooldownTurns)
-        return false;  // Still within cooldown
-}
-```
-
-### Key Points
-
-- `DroppedByPlayer` is set by the game when player drops items (value = 1)
-- Use a custom property (e.g., `MyMod_DroppedTurn`) to track the actual turn number
-- Set the custom property the first time you encounter an item with `DroppedByPlayer`
-- Properties are automatically serialized with save games
-- Clean up old properties periodically if needed (optional optimization)
-
----
-
-## Filtering Items by Blueprint — Boulders and Stones
-
-When filtering items by blueprint name, be careful with naming patterns:
-
-### The Problem
-
-Blueprints don't always follow simple naming conventions:
-
-- **Wrong**: `bp.StartsWith("Boulder")` — Misses "SmallBoulder", "MediumBoulder", "LargeBoulder"
-- **Wrong**: `bp.Contains("Stone")` — Too broad, matches "ThunderStone" or other items
-
-### Correct Approach
-
-Check for specific blueprint patterns:
-
-```csharp
-// Boulders: SmallBoulder, MediumBoulder, LargeBoulder (and variants like SmallBoulder Grey)
-if (bp.StartsWith("SmallBoulder") || bp.StartsWith("MediumBoulder") || bp.StartsWith("LargeBoulder"))
-    return false;
-
-// Stones: Exact match for "Small Stone" and "Large Stone" (note the space!)
-if (bp == "Small Stone" || bp == "Large Stone")
-    return false;
-
-// Combined check
-if (bp.StartsWith("SmallBoulder") || bp.StartsWith("MediumBoulder") || bp.StartsWith("LargeBoulder") ||
-    bp == "Small Stone" || bp == "Large Stone")
-    return false;
-```
-
-### Blueprint Variants
-
-Many items have variant blueprints with different colors or properties:
-
-- `SmallBoulder` → `SmallBoulder Grey`, `SmallBoulder Blue`, `SmallBoulder Black`
-- `MediumBoulder` → `MediumBoulder Grey`, `MediumBoulder Blue`, `MediumBoulder Black`
-- `LargeBoulder` → `LargeBoulder Grey`, `LargeBoulder Blue`, `LargeBoulder Black`
-
-Using `StartsWith("SmallBoulder")` catches all variants.
-
-### When to Use Blueprint Checks
-
-- **Use for**: Specific item types where blueprints follow known patterns
-- **Avoid for**: Generic filtering where `.Contains()` might match unintended items
-- **Always test**: Check game files for actual blueprint names and variants
-
----
-
-## Cell API
-
-```csharp
-Cell cell = player.CurrentCell;
-
-IEnumerable<GameObject> objs = cell.GetObjects();
-GameObject first = cell.GetFirstObjectWithPart("PartName", null, null);
-IEnumerable<GameObject> tagged = cell.GetObjectsWithTag("TagName");
-IEnumerable<Cell> adj = cell.GetLocalAdjacentCells();
-bool explored = cell.IsExplored();
-int x = cell.X;
-int y = cell.Y;
-Zone zone = cell.ParentZone;
-cell.RemoveObject(obj);
-```
-
----
-
-## Zone API
-
-```csharp
-Zone zone = player.CurrentZone;
-
-IEnumerable<GameObject> objs = zone.GetObjects();
-IEnumerable<GameObject> objs = zone.YieldObjects(); // lazy
-bool has = zone.HasObject(predicate);
-IEnumerable<GameObject> found = zone.FindObjects(predicate);
-string id = zone.ZoneID;
-bool isWorld = zone.IsWorldMap();
-
-ZoneManager zm = The.ZoneManager;
-Zone active = zm.ActiveZone;
-Zone z = zm.GetZone(zoneID);
-zm.SetActiveZone(zone);
-
-// Fast flood search (efficient large-area search)
-zone.FastFloodVisibility(x, y, radius, "PartName", actor);
-```
-
----
-
-## Body / Equipment API
-
-```csharp
-Body body = go.Body;
-List<BodyPart> parts = body.GetParts();
-BodyPart shield = body.GetShield();
-BodyPart slot = body.GetPart("Thrown Weapon").FirstOrDefault();
-
-// Per body part
-GameObject equipped = bp.Equipped;
-bool primary = bp.Primary;
-string type = bp.Type;
-string name = bp.Name;
-bool ok = bp.TryUnequip(true, false);
-
-// Equip event
-go.FireEvent(Event.New("CommandEquipObject", "Object", item, "BodyPart", bodyPart));
-```
-
----
-
-## Inventory Part API
-
-```csharp
-Inventory inv = go.GetPart<Inventory>();
-// or shorthand:
-Inventory inv = go.Inventory;
-
-// Get objects
-IEnumerable<GameObject> items = inv.GetObjects();
-IEnumerable<GameObject> items = inv.GetObjectsDirect(); // without validation
-List<GameObject> objectList = inv.Objects;              // direct access to list
-
-// Add objects (returns the added object, potentially stacked)
-GameObject added = inv.AddObject(GameObject obj, 
-    GameObject Actor = null,      // who's adding it
-    bool Silent = false,          // suppress messages
-    bool NoStack = false,         // don't stack with existing
-    bool FlushTransient = true,   // flush transient caches
-    string Context = null,        // context for events
-    IEvent ParentEvent = null);   // parent event
-
-// Add by blueprint
-GameObject added = inv.AddObject(string Blueprint, 
-    bool Silent = false, 
-    bool NoStack = false);
-
-// Add without stacking
-GameObject added = inv.AddObjectNoStack(GameObject obj);
-
-// Remove objects
-void RemoveObject(GameObject obj, IEvent ParentEvent = null);
-bool RemoveObjectFromInventory(GameObject obj,
-    GameObject Actor = null,
-    bool Silent = false,
-    bool NoStack = false,
-    bool FlushTransient = true,
-    string Context = null,
-    IEvent ParentEvent = null);
-
-// Check contents
-bool hasObj = inv.HasObject(GameObject obj);
-bool hasObj = inv.HasObjectDirect(GameObject obj); // without validation
-bool hasBlueprint = inv.HasObject(string blueprint);
-int count = inv.Count(string blueprint); // counts stacked items
-int totalCount = inv.GetObjectCountDirect();
-int weight = inv.GetWeight();
-bool isEmpty = inv.IsEmpty();
-
-// Validation and cleanup
-inv.Validate();                      // remove invalid objects
-bool backedUp = inv.TryStoreBackup();   // store to base64 property
-bool restored = inv.TryRestoreBackup(); // restore from base64 property
+Brain.AllegianceLevel level = go.GetAllegianceLevel(faction);
+// Member (friendly), Neutral, None (unknown), Hostile, Enemy
 ```
 
 ---
 
 ## Item Modifications
 
-Items in Caves of Qud can have modifications (mods) like "Sharp", "Heavy", "Masterwork", etc. **Each modification is a separate part type** implementing the `IModification` interface.
-
-### Common Modification Types
-
-There are 112+ modification types, including:
-- `ModSharp` - Sharp weapon (+1 to hit)
-- `ModHeavy` - Heavy weapon (+1 damage, -1 to hit)
-- `ModPadded` - Padded armor
-- `ModMasterwork` - Masterwork quality
-- `ModGigantic` - Gigantic weapon
-- `ModExtradimensional` - Extradimensional storage
-- And many more...
-
-### Detecting Modifications
+**Each mod is a separate part**, not a single "Modification" part:
 
 ```csharp
-// WRONG - "Modification" part doesn't exist
+// WRONG
 bool hasMods = go.HasPart("Modification");  // Always false!
 
-// CORRECT - Check for IModification interface
-using System.Linq;
-
-// Get all modification parts
-List<IPart> mods = go.PartsList
-    .Where(p => p is IModification)
-    .ToList();
-
-// Check if item has any modifications
-bool hasModifications = mods.Count > 0;
-
-// Get modification type names
-List<string> modNames = mods
-    .Select(m => m.GetType().Name)
-    .ToList();
+// CORRECT
+var mods = go.PartsList.Where(p => p is IModification).ToList();
+bool hasMods = mods.Count > 0;
+var modNames = mods.Select(m => m.GetType().Name).ToList();
 // Result: ["ModSharp", "ModHeavy"], etc.
 ```
 
-### Comparing Modifications
-
-To check if two items have the same modifications:
-
-```csharp
-public static bool HaveSameModifications(GameObject a, GameObject b)
-{
-    // Get all modifications from both items
-    var modsA = a.PartsList.Where(p => p is IModification).ToList();
-    var modsB = b.PartsList.Where(p => p is IModification).ToList();
-    
-    // Different number of mods = not the same
-    if (modsA.Count != modsB.Count)
-        return false;
-    
-    // Both have no mods = same
-    if (modsA.Count == 0 && modsB.Count == 0)
-        return true;
-    
-    // Compare modification type names
-    var namesA = modsA.Select(m => m.GetType().Name).OrderBy(n => n);
-    var namesB = modsB.Select(m => m.GetType().Name).OrderBy(n => n);
-    
-    return namesA.SequenceEqual(namesB);
-}
-
-// Usage
-if (!HaveSameModifications(itemA, itemB))
-{
-    // Items have different modifications - don't stack them!
-}
-```
-
-### IModification Interface
-
-```csharp
-public interface IModification : IPart
-{
-    string Name { get; }           // Display name of the mod
-    bool IsValid { get; }          // Whether the mod is still valid
-    bool IsTechScannable { get; }  // Shows up on tech scans
-    bool IsBioScannable { get; }   // Shows up on bio scans
-    // ... other properties
-}
-```
-
 ---
 
-## Safe Inventory Sorting
+## Non-Lootable World Objects
 
-**CRITICAL**: `Inventory.Objects` is a direct reference to the internal list. Clearing and rebuilding it will break other mods iterating over inventory (causing `ArgumentOutOfRangeException`).
-
-### CORRECT: In-Place Sorting (Safe)
-
-Use `List<T>.Sort()` to reorder items without clearing the list:
-
-```csharp
-/// <summary>
-/// Sorts inventory alphabetically A-Z using safe in-place sorting.
-/// Compatible with other inventory mods.
-/// </summary>
-public static void SortInventoryAlphabetically(GameObject owner)
-{
-    if (owner == null) return;
-    
-    Inventory inv = owner.GetPart<Inventory>();
-    if (inv == null) return;
-    
-    List<GameObject> objects = inv.Objects;
-    if (objects == null || objects.Count < 2) return;
-    
-    try
-    {
-        // Sort in-place using List<T>.Sort() with comparison
-        // This reorders elements WITHOUT clearing the list
-        objects.Sort((a, b) =>
-        {
-            if (a == null && b == null) return 0;
-            if (a == null) return 1;
-            if (b == null) return -1;
-            
-            string nameA = a.DisplayNameStripped ?? "";
-            string nameB = b.DisplayNameStripped ?? "";
-            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
-        });
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"Failed to sort inventory: {ex.Message}");
-    }
-}
-```
-
-### WRONG: Clear and Rebuild (Unsafe)
-
-**NEVER DO THIS** - it breaks other mods:
-
-```csharp
-// WRONG - Will cause ArgumentOutOfRangeException in other mods!
-List<GameObject> sorted = inv.Objects.OrderBy(x => x.DisplayNameStripped).ToList();
-inv.Objects.Clear();  // DANGEROUS!
-foreach (var item in sorted)
-{
-    inv.Objects.Add(item);  // Other mods iterating will crash!
-}
-```
-
-### Key Differences
-
-| Approach | Method | Safe? | Description |
-|----------|--------|-------|-------------|
-| **Safe** | `List.Sort()` | ✅ Yes | Reorders in-place, list reference unchanged |
-| **Unsafe** | `Clear()` + `Add()` | ❌ No | Breaks existing iterators in other mods |
-| **Safe** | Index assignment `objects[i] = item` | ✅ Yes | Replaces elements without structural changes |
-
-### Why In-Place Sorting Works
-
-- `List<T>.Sort()` only swaps element positions within the existing list
-- The list reference (`inv.Objects`) never changes
-- Other mods holding references to the list continue to work
-- Iterators in other mods see reordered elements but don't crash
-
----
-
-## Activated Abilities
-
-```csharp
-// From inside an IPart (preferred):
-Guid id = AddMyActivatedAbility(
-    "Ability Name",          // display name
-    "MyMod_CommandID",       // command fired when activated
-    "Skill",                 // category (e.g. "Skill", "Items", "Mutations")
-    Description: "...",
-    Icon: "-",               // text icon
-    UITileDefault: Renderable.UITile("tile.png", 'y', 'r'), // graphical icon
-    Silent: true
-);
-RemoveMyActivatedAbility(ref id);
-
-// From a GameObject directly:
-Guid id = go.AddActivatedAbility("Name", "CommandID", "Category", ...);
-go.RemoveActivatedAbility(ref id);
-
-// Look up ability
-ActivatedAbilityEntry entry = MyActivatedAbilities.GetAbilityByCommand("CommandID");
-```
-
----
-
-## Firing Events
-
-### String Events (Legacy)
-
-```csharp
-// Fire by ID
-bool continued = go.FireEvent("EventID");
-bool continued = go.FireEvent("EventID", ParentEvent);
-
-// Create with parameters
-Event e = Event.New("EventID");
-e.SetParameter("Amount", 50);
-e.SetParameter("Target", someGameObject);
-e.SetParameter("Name", "value");
-bool continued = go.FireEvent(e);
-
-// Retrieve parameters in FireEvent:
-int amt = E.GetIntParameter("Amount");
-string str = E.GetStringParameter("Name");
-GameObject obj = E.GetGameObjectParameter("Target");
-double dbl = E.GetDoubleParameter("Value");
-bool flag = E.GetFlag("FlagName");
-
-// One-liner with params
-bool continued = go.FireEvent(Event.New("CommandTrade", "Target", merchant));
-```
-
-### Useful Game Commands
-
-```csharp
-// Pick up an item (same as player pressing 'g' on it)
-player.FireEvent(Event.New("CommandTakeObject", "Object", item));
-
-// Trade with a merchant (prefer TradeUI.ShowTradeScreen instead)
-player.FireEvent(Event.New("CommandTrade", "Target", merchant));
-```
-
-### MinEvents (Modern)
-
-```csharp
-// Fire event on object
-bool continued = go.HandleEvent(MinEventInstance);
-
-// Pool pattern (preferred for performance)
-var E = SomeEvent.FromPool();
-E.SomeField = value;
-bool continued = go.HandleEvent(E);
-// Event is automatically returned to pool
-
-// Common examples
-player.HandleEvent(GiveDramsEvent.FromPool(Actor: player, Drams: 50));
-
-// Check if object wants event (optimization)
-if (go.WantEvent(EventID, MinEvent.CASCADE_EQUIPMENT))
-{
-    go.HandleEvent(eventInstance);
-}
-```
-
-### Event Registration (for String Events)
-
-```csharp
-// In Part.Register():
-public override void Register(GameObject Object, IEventRegistrar Registrar)
-{
-    Registrar.Register("MyEvent");
-    Registrar.Register(The.Game, ZoneActivatedEvent.ID); // on another object
-    base.Register(Object, Registrar);
-}
-
-// Static events (always registered, not serialized)
-public override string[] GetStaticEvents() => new[] { "AlwaysRegisteredEvent" };
-
-// AllowStaticRegistration - re-register on every save load
-public override bool AllowStaticRegistration() => true; // for player parts
-```
-
----
-
-## InventoryActionEvent
-
-```csharp
-// Trigger an inventory action
-InventoryActionEvent.Check(item, actor, item, "Apply");
-InventoryActionEvent.Check(tonic, player, tonic, "Apply");
-InventoryActionEvent.Check(food, player, food, "Eat");
-InventoryActionEvent.Check(container, player, container, "CleanWithLiquid");
-
-// Inside HandleEvent(InventoryActionEvent E):
-string cmd = E.Command;
-GameObject item = E.Item;
-GameObject actor = E.Actor;
-E.RequestInterfaceExit(); // close current UI
-
-// GetInventoryActionsEvent - add context menu actions to items
-E.AddAction("Undeploy turret", "undeploy turret", "CommandUndeployTurret", null, 'u');
-```
-
----
-
-## Popup / UI
-
-```csharp
-Popup.Show("Message");
-Popup.ShowFail("Error");
-Popup.ShowBlock("Long message", Title: "Title");
-
-// Yes/No (sync)
-if (Popup.ShowYesNo("Are you sure?") == DialogResult.Yes) { }
-
-// Yes/No (async)
-var task = Popup.ShowYesNoAsync("Message");
-task.ContinueWith(t => { if (t.Result == DialogResult.Yes) doStuff(); });
-
-// Wait with callback
-Popup.WaitNewPopupMessage(
-    message: "Do thing?",
-    buttons: new List<QudMenuItem>(PopupMessage.YesNoButton),
-    callback: i => { if (i.command == "Yes") { } });
-
-// Pick from list (CURRENT/PREFERRED — replaces ShowOptionList)
-int choice = Popup.PickOption(
-    Title: "Choose",
-    Options: new List<string>() { "Option A", "Option B" },
-    Hotkeys: new List<char>() { 'a', 'b' },
-    Icons: optionalIconList,
-    AllowEscape: true
-);
-// returns -1 if escaped
-
-// Pick from list (DEPRECATED — use PickOption instead)
-int choice = Popup.ShowOptionList("Title", options.ToArray(), hotkeys.ToArray());
-
-// Pick a GameObject
-GameObject selected = Popup.PickGameObject(
-    Title: "Choose Item",
-    Objects: itemsArray,
-    AllowEscape: true,
-    ShowContext: false
-);
-
-// Ask string input (sync)
-string input = Popup.AskString("Prompt", ReturnNullForEscape: true);
-
-// Ask string input (async)
-string input = await Popup.AskStringAsync("Prompt", Default: current,
-    MaxLength: 1024, ReturnNullForEscape: true, AllowColorize: false);
-```
+| Check | Type | Examples |
+|-------|------|----------|
+| `HasPart("Harvestable")` | Plants, trees, mushrooms | World decorations |
+| `HasPart("Garbage")` | Garbage, trash | "Gettable terrain" |
+| `HasTagOrProperty("NoAutoget")` | Quest items, special | Game marker |
+| `!IsTakeable()` | Rubble, debris | Non-pickable |
+| `LiquidVolume.MaxVolume < 0` | Liquid pools | Ground puddles |
 
 ---
 
@@ -1501,244 +311,45 @@ string input = await Popup.AskStringAsync("Prompt", Default: current,
 ### Detecting Merchants
 
 ```csharp
-bool isMerchant = go.HasPart("GenericInventoryRestocker") || go.HasPart("Restocker");
-bool hasCommerce = go.HasPart<Commerce>();
-bool givesRep = go.HasPart<GivesRep>();
-```
-
-**IMPORTANT**: Many NPCs have `Commerce` or `Restocker` parts, not just merchants. To find actual merchants:
-
-```csharp
-// CORRECT - Check for Commerce or service providers
 bool hasCommerce = obj.HasPart<Commerce>();
 bool hasRepair = obj.GetPart<Tinkering_Repair>() != null;
 bool hasRecharge = obj.HasSkill("Tinkering_Tinker1");
-bool hasTinkering = obj.HasSkill("Tinkering") || obj.GetPart<Tinkering_Repair>() != null;
 bool hasWontSell = obj.HasPropertyOrTag("WontSell");
 
-if (!obj.IsPlayer() &&                            // Must NOT be the player
-    obj.IsCreature &&                             // Must be a creature (not furniture!)
-    (hasCommerce || hasRepair || hasRecharge || hasTinkering) && // Is merchant or service provider
-    !obj.IsHostileTowards(player) &&               // Not hostile
-    !(hasWontSell && !hasRepair && !hasRecharge) && // Allow service providers with WontSell (like Argyve)
-    obj.Inventory != null &&                        // Has inventory
-    obj.Inventory.GetObjectCountDirect() > 0)      // Inventory has items
+if (!obj.IsPlayer() && obj.IsCreature &&
+    (hasCommerce || hasRepair || hasRecharge) &&
+    !obj.IsHostileTowards(player) &&
+    !(hasWontSell && !hasRepair && !hasRecharge) &&
+    obj.Inventory != null &&
+    obj.Inventory.GetObjectCountDirect() > 0)
 {
-    // This is likely an actual merchant or service provider (like Argyve)
-}
-
-// WRONG - Too broad, detects quest givers, trainers, FURNITURE, etc.
-if (obj.HasPart<Commerce>() || obj.HasPart("GenericInventoryRestocker"))
-{
-    // This detects 500+ objects including dressers, chests, etc.!
+    // Valid merchant or service provider
 }
 ```
 
-**Restrict to Same Parasang (Local Area)**
-
-Large zones like Six Day Stilt span multiple parasangs. To only find merchants near the player:
+### Opening Trade
 
 ```csharp
-// A parasang is roughly 80x25 cells in Qud
-Cell playerCell = The.Player.GetCurrentCell();
-int playerParasangX = playerCell.X / 80;
-int playerParasangY = playerCell.Y / 25;
-
-Cell merchantCell = obj.GetCurrentCell();
-int merchantParasangX = merchantCell.X / 80;
-int merchantParasangY = merchantCell.Y / 25;
-
-if (merchantParasangX == playerParasangX && merchantParasangY == playerParasangY)
-{
-    // Merchant is in the same parasang as player
-}
+// PREFERRED - Use TradeUI.ShowTradeScreen directly
+TradeUI.ShowTradeScreen(merchant, 1f, TradeUI.TradeScreenMode.Trade);
 ```
 
-### TradeUI Methods
+### TradeEntry (Reflection Required)
 
 ```csharp
-bool canTrade = TradeUI.ValidForTrade(item, trader, actor);
-TradeUI.GetObjects(trader, forSaleList, actor); // populates a List<TradeEntry>
-int value = TradeUI.GetValue(item, forSelling: false);
-TradeUI.DoVendorRepair(item, trader);
-TradeUI.DoVendorRecharge(item, trader);
-```
-
-### TradeEntry
-
-**IMPORTANT**: TradeEntry constructor/fields are not directly accessible. Use reflection to create instances and access fields.
-
-```csharp
-// CORRECT - TradeEntry structure (from decompiled code)
-public class TradeEntry
-{
-    public GameObject GO;  // The actual item GameObject
-    public string CategoryName = "";
-    // Note: No 'count' field - item count comes from GameObject.Count
-}
-
-// CORRECT - Use reflection to access the GO field
+// TradeEntry wraps GameObject, use reflection
 FieldInfo goField = typeof(TradeEntry).GetField("GO", 
     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 GameObject item = goField?.GetValue(entry) as GameObject;
 
-// CORRECT - Create TradeEntry via reflection
-Type tradeEntryType = typeof(TradeEntry);
-ConstructorInfo ctor = tradeEntryType.GetConstructor(new[] { typeof(GameObject) });
+// Create TradeEntry
+ConstructorInfo ctor = typeof(TradeEntry).GetConstructor(new[] { typeof(GameObject) });
 TradeEntry entry = (TradeEntry)ctor.Invoke(new object[] { item });
-
-// WRONG - Field name is 'GO', not 'obj'
-FieldInfo objField = typeof(TradeEntry).GetField("obj", ...);  // Returns null!
-GameObject item = entry.GO;  // CS1061: 'TradeEntry' does not contain 'GO'
-
-// WRONG - There is no 'count' field
-FieldInfo countField = typeof(TradeEntry).GetField("count", ...);  // Returns null!
-int count = entry.count;  // CS1061: 'TradeEntry' does not contain 'count'
 ```
 
-**Note**: TradeEntry wraps a GameObject directly. Item counts come from `GameObject.Count`, not from TradeEntry. The safest approach is to let TradeUI.GetObjects() populate the list rather than creating TradeEntry objects manually.
+### Force-Close Trade After Transaction
 
-### Opening Trade
-
-**Use TradeUI.ShowTradeScreen() instead of CommandTrade event:**
-
-```csharp
-// CORRECT - Use TradeUI.ShowTradeScreen directly
-TradeUI.ShowTradeScreen(merchant, costMultiple: 1f, TradeUI.TradeScreenMode.Trade);
-
-// WRONG - CommandTrade event may fail silently with invalid targets
-player.FireEvent(Event.New("CommandTrade", "Target", merchant));
-```
-
-**Note**: The target must be a valid creature merchant, not furniture or other objects with Commerce parts.
-
-**Vendor Services**: Merchants with tinkering services (identify/repair/recharge) show a vendor actions menu. To give players access to the best services across multiple merchants, use a scoring system:
-
-```csharp
-// Find the merchant with the best overall services
-GameObject bestMerchant = merchants[0];
-int bestIdentifyLevel = Tinkering.GetIdentifyLevel(bestMerchant);
-bool bestHasRepair = bestMerchant.GetPart<Tinkering_Repair>() != null;
-bool bestHasRecharge = bestMerchant.HasSkill("Tinkering_Tinker1");
-
-foreach (var merchant in merchants)
-{
-    int identifyLevel = Tinkering.GetIdentifyLevel(merchant);
-    bool hasRepair = merchant.GetPart<Tinkering_Repair>() != null;
-    bool hasRecharge = merchant.HasSkill("Tinkering_Tinker1");
-    
-    // Score: identify level + 10 for repair + 10 for recharge
-    int merchantScore = identifyLevel + (hasRepair ? 10 : 0) + (hasRecharge ? 10 : 0);
-    int bestScore = bestIdentifyLevel + (bestHasRepair ? 10 : 0) + (bestHasRecharge ? 10 : 0);
-    
-    if (merchantScore > bestScore)
-    {
-        bestIdentifyLevel = identifyLevel;
-        bestHasRepair = hasRepair;
-        bestHasRecharge = hasRecharge;
-        bestMerchant = merchant;
-    }
-}
-
-// Player gets access to best services + consolidated inventory
-TradeUI.ShowTradeScreen(bestMerchant, 1f, TradeUI.TradeScreenMode.Trade);
-```
-
-### Multi-Merchant Trade: Post-Trade Reconciliation
-
-When consolidating inventory from multiple merchants, rare edge cases can cause items to end up with the wrong merchant. Post-trade reconciliation fixes this:
-
-```csharp
-// 1. Before trade: Capture snapshot of all merchant inventories
-Dictionary<string, string> itemOwnerMap = new Dictionary<string, string>(); // item ID -> merchant ID
-
-foreach (GameObject merchant in merchants)
-{
-    Inventory inv = merchant.GetPart<Inventory>();
-    foreach (GameObject item in inv.GetObjectsDirect())
-    {
-        itemOwnerMap[item.ID] = merchant.ID;
-    }
-}
-
-// 2. During trade: Player buys/sells normally through consolidated UI
-
-// 3. After trade: Reconcile - only fix items that ended up with WRONG merchant
-[HarmonyPostfix]
-public static void Postfix()
-{
-    foreach (var kvp in itemOwnerMap)
-    {
-        string itemId = kvp.Key;
-        string originalOwnerId = kvp.Value;
-        
-        GameObject item = GameObject.findById(itemId);
-        if (item == null) continue; // Item was destroyed/consumed/bought by player
-        
-        GameObject currentOwner = item.InInventory;
-        if (currentOwner == null) continue; // Item not in inventory (ground, container, etc.)
-        
-        // Skip if item is with player (they bought it legitimately)
-        if (currentOwner.IsPlayer()) continue;
-        
-        // Skip if item is already with original owner
-        if (currentOwner.ID == originalOwnerId) continue;
-        
-        // Only fix if item ended up with DIFFERENT merchant (rare edge case)
-        if (IsMerchant(currentOwner))
-        {
-            GameObject originalOwner = FindMerchantById(originalOwnerId);
-            if (originalOwner != null)
-            {
-                currentOwner.GetPart<Inventory>().RemoveObject(item, null);
-                originalOwner.GetPart<Inventory>().AddObject(item, null);
-            }
-        }
-    }
-}
-```
-
-**Key Points:**
-- Track item ownership with `GameObject.ID` (unique per instance)
-- Find current owner with `item.InInventory`
-- **NEVER move items from player** - they bought them legitimately
-- Only fix items that somehow ended up with the wrong merchant (rare)
-- Use `GameObject.findById()` to locate items after trade
-- Does NOT restore pre-trade quantities (prevents duping exploits)
-
-### TradeScreen — Detect Close
-
-```csharp
-[HarmonyPatch]
-public static class MyMod_TradeClosePatch
-{
-    [HarmonyTargetMethod]
-    public static MethodBase TargetMethod()
-    {
-        var t = AccessTools.TypeByName("Qud.UI.TradeScreen");
-        if (t == null) return null;
-        return AccessTools.Method(t, "Hide") ?? AccessTools.Method(t, "Cleanup");
-    }
-
-    [HarmonyPostfix]
-    public static void Postfix()
-    {
-        // trade screen just closed
-        // TradeScreen.Trader is a static field with the current trader
-    }
-}
-```
-
-### TradeScreen — Force Close After Trade (Prevent Stale UI)
-
-**Problem:** When modifying the trade system (e.g., merging merchant inventories), clicking TRADE causes the UI to refresh with stale data before closing. The virtual items have been destroyed, but `ClearAndSetupTradeUI()` triggers your `TradeUI.GetObjects` patch, recreating them.
-
-**Failed Approaches:**
-- Patching `ClearAndSetupTradeUI` with a call counter — called multiple times during initialization
-- Patching `HandleMenuOption` — it's `async void`, difficult to intercept correctly
-- Patching `UpdateViewFromData` and calling `Hide()` via reflection — getting the TradeScreen instance via `SingletonWindowBase` fails
-
-**Working Solution:** Patch `TradeUI.PerformOffer` return value:
+Patch `TradeUI.PerformOffer` return value to prevent UI refresh:
 
 ```csharp
 [HarmonyPatch]
@@ -1747,276 +358,20 @@ public static class TradeUI_PerformOffer_Patch
     [HarmonyTargetMethod]
     public static MethodBase TargetMethod()
     {
-        var tradeUIType = AccessTools.TypeByName("XRL.UI.TradeUI");
-        // Find PerformOffer with 6 parameters
-        var methods = tradeUIType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-        foreach (var method in methods)
-        {
-            if (method.Name == "PerformOffer" && method.GetParameters().Length == 6)
-                return method;
-        }
-        return null;
+        var t = AccessTools.TypeByName("XRL.UI.TradeUI");
+        return AccessTools.Method(t, "PerformOffer", new[] {
+            typeof(int), typeof(bool), typeof(GameObject),
+            typeof(TradeUI.TradeScreenMode), typeof(List<TradeEntry>[]), typeof(int[][])
+        });
     }
 
     [HarmonyPostfix]
     public static void Postfix(ref TradeUI.OfferStatus __result)
     {
-        // Only apply when in your custom trade mode
         if (!MyModState.IsZoneTrade) return;
-
-        // Change REFRESH/TOP to CLOSE to prevent UI refresh
         if (__result == TradeUI.OfferStatus.REFRESH || __result == TradeUI.OfferStatus.TOP)
-        {
             __result = TradeUI.OfferStatus.CLOSE;
-        }
     }
-}
-```
-
-**Why This Works:**
-- `PerformOffer` is a **static method** — much easier to patch than async void
-- The return value directly controls what `HandleMenuOption` does next:
-  - `REFRESH`/`TOP` → calls `ClearAndSetupTradeUI()` + `UpdateViewFromData()`
-  - `CLOSE` → calls `Hide()` and exits
-- Works with the game's natural control flow
-- No reflection needed to close the screen
-
-**Key Insight:** When you need to modify game behavior, look for:
-1. **Static methods** over instance methods (easier to patch reliably)
-2. **Return value modification** over trying to call methods via reflection
-3. **Control flow points** where the game makes decisions based on return values
-
-### Trade Value
-
-```csharp
-// Get the trade performance multiplier for a player
-double multiplier = GetTradePerformanceEvent.GetFor(The.Player, The.Player);
-bool freshWater = item.ContainsFreshWater();
-bool isCurrency = item.IsCurrency;
-```
-
----
-
-## AutoAct / AutoExplore
-
-**WARNING: AutoAct may not exist in all game versions.** Before using, verify it's available by checking if compilation succeeds with `XRL.UI.AutoAct`. In some game versions (e.g., 1.0.4, Core 2.0.210.24), AutoAct is not accessible and causes compilation errors. Consider alternative approaches for detecting auto-explore state.
-
-**If available: AutoAct is in the `XRL.UI` namespace.**
-
-```csharp
-using XRL.UI;  // ← REQUIRED or AutoAct won't compile (if available)
-
-// Check if any autoact is in progress
-string setting = AutoAct.Setting; // "" if none running
-
-// Check if auto-act is currently active
-bool isActive = AutoAct.IsActive();
-
-// Check if auto-act is movement (vs other actions)
-bool isMovement = AutoAct.IsMovement();
-
-// Interrupt
-AutoAct.Interrupt();
-
-// Set a custom ongoing action
-AutoAct.Action = new MyAction(actor, target);
-actor.ForfeitTurn(EnergyNeutral: true);
-
-// Custom ongoing action
-public class MyAction : OngoingAction
-{
-    public override string GetDescription() => "doing something";
-    public override bool Continue()
-    {
-        // Return false to stop
-        // Use actor.UseEnergy(cost, "Category") to spend energy per step
-        return true;
-    }
-    public override string GetInterruptBecause() => "interrupted because...";
-    public override bool ShouldHostilesInterrupt() => false;
-    public override void Interrupt() { }
-    public override bool CanComplete() => _readyToComplete;
-    public override void Complete() { /* perform the action */ }
-    public override void End() { /* cleanup */ }
-}
-```
-
-### AutoexploreObjectEvent — Making Auto-Explore Interact with Items
-
-**CRITICAL: AutoexploreObjectEvent has `Item` property (not `Object`).**
-
-```csharp
-using XRL.UI;  // REQUIRED for AutoAct
-
-// CORRECT — Handle auto-explore object interaction
-public override bool WantEvent(int ID, int cascade)
-{
-    return base.WantEvent(ID, cascade) || ID == AutoexploreObjectEvent.ID;
-}
-
-public override bool HandleEvent(AutoexploreObjectEvent E)
-{
-    // WRONG: E.Object — this property doesn't exist!
-    // CORRECT: E.Item — the GameObject being considered
-    if (E.Item == null || The.Player == null)
-        return base.HandleEvent(E);
-    
-    // Check if this item should be auto-looted
-    if (ShouldAutoLoot(E.Item, The.Player))
-    {
-        // Tell auto-explore to pick up this item
-        E.Command = "Autoget";
-    }
-    
-    return base.HandleEvent(E);
-}
-
-// Example: Skip container extraction during auto-explore
-private void HandleContainerContents(GameObject container, GameObject player)
-{
-    // Only loot contents if NOT auto-exploring
-    // Auto-explore already handles container contents
-    if (AutoAct.IsActive() && AutoAct.IsMovement())
-        return;
-    
-    // Loot container contents...
-}
-```
-
-**Common Pitfalls:**
-1. **Missing namespace**: `AutoAct` won't compile without `using XRL.UI;`
-2. **Wrong property**: `AutoexploreObjectEvent` has `E.Item` not `E.Object`
-3. **Both error**: Combining these mistakes causes 3+ compilation errors
-
----
-
-## Harmony Patching
-
-Harmony is **built into the game** — no extra dependencies needed.
-
-> **Use Harmony as a last resort.** Prefer events and parts. Postfix > non-blocking Prefix > blocking Prefix > Transpiler (for compatibility).
-
-### Initializing Harmony Patches
-
-**IMPORTANT**: You must manually initialize Harmony patches. Use `[HasModSensitiveStaticCache]` on a static class with a static constructor, or call `harmony.PatchAll()` from your PlayerMutator/LoadGameHandler.
-
-```csharp
-// CORRECT - Initialize Harmony patches with HasModSensitiveStaticCache
-[HasModSensitiveStaticCache]
-public static class MyMod_HarmonyInitializer
-{
-    static MyMod_HarmonyInitializer()
-    {
-        var harmony = new Harmony("MyModID");
-        harmony.PatchAll();
-    }
-    
-    public static void Init() { /* Trigger static constructor */ }
-}
-
-// Then call Init() from PlayerMutator and LoadGameHandler
-[PlayerMutator]
-public class MyMod_PlayerMutator : IPlayerMutator
-{
-    public void mutate(GameObject player)
-    {
-        MyMod_HarmonyInitializer.Init(); // Ensure patches are applied
-        player.RequirePart<MyMod_Part>();
-    }
-}
-
-// WRONG - Static constructors on patch classes may not be called automatically
-[HarmonyPatch(typeof(SomeClass))]
-public static class MyPatch
-{
-    static MyPatch()
-    {
-        // This may never be called!
-    }
-}
-```
-
-### Patch Examples
-
-```csharp
-using HarmonyLib;
-
-// Simple postfix
-[HarmonyPatch(typeof(TargetClass), nameof(TargetClass.Method))]
-class MyPatch
-{
-    [HarmonyPostfix]
-    static void Postfix(TargetClass __instance, ref ReturnType __result)
-    {
-        // runs after original
-    }
-}
-
-// Prefix (can block original if returns false)
-[HarmonyPatch(typeof(TargetClass), nameof(TargetClass.Method))]
-[HarmonyPrefix]
-static bool Prefix(TargetClass __instance, ref ReturnType __result, ParamType param)
-{
-    return true; // true = run original, false = skip it
-}
-
-// Overloaded method — specify parameter types
-[HarmonyPatch(typeof(ZoneManager), nameof(ZoneManager.SetActiveZone), new Type[] { typeof(Zone) })]
-
-// Pass state between prefix and postfix
-[HarmonyPrefix]
-static void SaveState(out bool __state)
-{
-    __state = someValue;
-}
-[HarmonyPostfix]
-static void UseState(bool __state) { }
-
-// Multiple target methods
-static IEnumerable<MethodBase> TargetMethods()
-{
-    yield return AccessTools.DeclaredMethod(typeof(ClassA), "MethodA");
-    yield return AccessTools.DeclaredMethod(typeof(ClassB), "MethodB");
-}
-
-// Dynamic target (runtime type lookup)
-[HarmonyTargetMethod]
-public static MethodBase TargetMethod()
-{
-    var t = AccessTools.TypeByName("Qud.UI.TradeScreen");
-    return t == null ? null : AccessTools.Method(t, "Hide") ?? AccessTools.Method(t, "Cleanup");
-}
-```
-
-### Harmony Patching Lessons Learned
-
-**Key principles discovered through practice:**
-
-1. **Static methods > Async void methods**: Static methods are much easier to patch reliably. Async void methods have complex control flow that makes interception difficult. If you need to modify behavior in an async void method, look for a static method it calls and patch that instead.
-
-2. **Return value modification > Reflection calls**: Instead of trying to call instance methods via reflection (which can fail due to internal state issues like `SingletonWindowBase<T>.instance` not being found), modify return values. The game's control flow will naturally handle the rest based on the modified return value.
-
-3. **Call counters are unreliable during initialization**: Methods like `ClearAndSetupTradeUI()` can be called multiple times during screen setup, making call-counting approaches fragile for detecting post-action state.
-
-4. **Virtual objects may be destroyed during processing**: When working with virtual/temporary GameObjects, use persistent data structures (dictionaries, registry classes) that survive object destruction. The game may destroy objects before your cleanup code runs.
-
-**Example**: See the "TradeScreen — Force Close After Trade" section for a practical application of return value modification.
-
----
-
-## Description / Short Description
-
-```csharp
-// Listen for GetShortDescriptionEvent to modify object descriptions
-public override bool WantEvent(int ID, int cascade)
-{
-    return base.WantEvent(ID, cascade) || ID == GetShortDescriptionEvent.ID;
-}
-
-public override bool HandleEvent(GetShortDescriptionEvent E)
-{
-    E.AddMark("My added text", DescriptionBuilder.ORDER_ADJUST_EXTREMELY_EARLY);
-    return base.HandleEvent(E);
 }
 ```
 
@@ -2026,811 +381,137 @@ public override bool HandleEvent(GetShortDescriptionEvent E)
 
 ```csharp
 LiquidVolume vol = go.LiquidVolume;
-bool freshWater = vol.IsFreshWater();
-bool isPure = vol.IsPure();
 int volume = vol.Volume;
-string liquidName = vol.GetLiquidName();
-double valuePerDram = vol.GetLiquidExtrinsicValuePerDram();
-double weightPerDram = vol.GetLiquidWeightPerDram();
+int maxVol = vol.MaxVolume;  // < 0 = puddle, >= 0 = container
+bool isPure = vol.IsPure();
+Dictionary<string, int> components = vol.ComponentLiquids;  // {"water": 500}
 
-// ComponentLiquids is a Dictionary<string, int> - maps liquid ID to volume
-Dictionary<string, int> components = vol.ComponentLiquids;
-// e.g., { "water": 50, "wine": 30 } for a mixture
-
-vol.ProcessContact(target, Initial: true, Poured: true, PouredBy: who, ContactVolume: 1);
-vol.PourIntoCell(who, cell, 1, ref requestExit, CanPourOn: true);
-bool hasFreshWater = go.ContainsFreshWater();
-
-// Detecting puddles vs containers
-// MaxVolume < 0 indicates a liquid puddle/pool on the ground (not a container)
-// MaxVolume >= 0 indicates an actual container (waterskin, vial, etc.)
-if (vol != null && vol.MaxVolume < 0)
-{
-    // This is a liquid puddle on the ground, not a container
-    // Don't pick it up as an inventory item
-}
-
-// Splitting liquids (create a new LiquidVolume with portion of liquid)
-// Returns new LiquidVolume with 'drams' amount, reduces source volume
+// Split and combine
 LiquidVolume split = sourceVol.Split(drams);
-if (split != null && split.Volume > 0)
+bool success = targetVol.MixWith(split);  // Can fail for unsafe liquids!
+
+// Never mix neutron flux!
+if (vol.ComponentLiquids.ContainsKey("neutronflux")) { /* skip */ }
+```
+
+---
+
+## Harmony Patching
+
+**Always decompile first**: `ilspy --assembly "Assembly-CSharp.dll" --output "temp/decompiled/"`
+
+### Initialization
+
+```csharp
+[HasModSensitiveStaticCache]
+public static class MyMod_HarmonyInitializer
 {
-    // Mix into target container
-    bool success = targetVol.MixWith(split);
-}
-
-// Combining liquids
-// MixWith can fail for certain liquids (e.g., neutron flux explodes)
-// Always check return value for success
-bool success = targetVol.MixWith(sourceSplit);
-if (!success)
-{
-    // Mixing failed - liquid may be unsafe to combine
-}
-
-// Checking liquid safety
-// Use ComponentLiquids.Keys to check what liquids are in a container
-if (vol.ComponentLiquids.ContainsKey("neutronflux"))
-{
-    // DO NOT attempt to move neutron flux - it will explode!
-}
-
-// Liquid proportion system
-// ComponentLiquids stores proportions as integers out of 1000
-// e.g., { "water": 500, "wine": 500 } means 50% water, 50% wine
-// To get actual volume: Volume * Proportion / 1000
-int actualWaterDrams = vol.Volume * vol.ComponentLiquids["water"] / 1000;
-
-// GCD-based ratio calculation (useful for liquid consolidation)
-// Creates a unique key based on liquid proportions
-// Containers with the same ratio will have the same key
-private static string GetMixtureKey(LiquidVolume vol)
-{
-    if (vol?.ComponentLiquids == null || vol.ComponentLiquids.Count == 0)
-        return "";
-
-    var components = vol.ComponentLiquids
-        .Where(kv => kv.Value > 0)
-        .OrderBy(kv => kv.Key)
-        .ToList();
-
-    if (components.Count == 0)
-        return "";
-
-    // Use GCD to normalize proportions to smallest integers
-    // e.g., { "water": 50, "wine": 30 } → GCD=10 → "water:5|wine:3"
-    int gcd = components.Aggregate(0, (current, kv) => current == 0 ? kv.Value : GCD(current, kv.Value));
-
-    return string.Join("|", components.Select(kv => $"{kv.Key}:{kv.Value / gcd}"));
-}
-
-private static int GCD(int a, int b)
-{
-    while (b != 0)
+    static MyMod_HarmonyInitializer()
     {
-        int temp = b;
-        b = a % b;
-        a = temp;
+        var harmony = new Harmony("MyModID");
+        harmony.PatchAll();
     }
-    return a;
+    
+    public static void Init() { }  // Trigger static constructor
+}
+```
+
+### Lessons Learned
+
+1. **Static methods > Async void** — Patch static methods, not async void
+2. **Return value modification > Reflection** — Change return values instead of calling methods via reflection
+3. **Call counters unreliable during init** — Methods may be called multiple times during setup
+4. **Virtual objects may be destroyed** — Use persistent dictionaries, not object references
+
+### Patch Patterns
+
+```csharp
+// Postfix
+[HarmonyPatch(typeof(TargetClass), nameof(TargetClass.Method))]
+class MyPatch
+{
+    [HarmonyPostfix]
+    static void Postfix(ref ReturnType __result)
+    {
+        if (__result == OriginalValue)
+            __result = NewValue;
+    }
+}
+
+// Dynamic target (unknown type at compile time)
+[HarmonyPatch]
+public static class MyPatch
+{
+    [HarmonyTargetMethod]
+    public static MethodBase TargetMethod()
+    {
+        var t = AccessTools.TypeByName("Qud.UI.SomeScreen");
+        return t == null? null : AccessTools.Method(t, "Hide") ?? AccessTools.Method(t, "Cleanup");
+    }
+    
+    [HarmonyPostfix]
+    public static void Postfix() { /* after Hide/Cleanup */ }
 }
 ```
 
 ---
 
-## Logging / Debugging
+## AutoexploreObjectEvent
 
 ```csharp
-// Shows in Player.log
+// E.Item not E.Object!
+public override bool HandleEvent(AutoexploreObjectEvent E)
+{
+    if (E.Item == null) return base.HandleEvent(E);
+    
+    if (ShouldAutoLoot(E.Item, The.Player))
+        E.Command = "Autoget";  // Tell auto-explore to pick up
+    
+    return base.HandleEvent(E);
+}
+```
+
+---
+
+## Logging
+
+```csharp
 UnityEngine.Debug.Log("[MyMod] message");
 UnityEngine.Debug.LogWarning("[MyMod] warning");
 UnityEngine.Debug.LogError("[MyMod] error");
 
-// Shows in Player.log with INFO/WARN/ERROR prefix
-MetricsManager.LogInfo("message");
-MetricsManager.LogWarning("message");
-MetricsManager.LogError("message");
-
-// In-game message log
-XRL.Messages.MessageQueue.AddPlayerMessage("Hello!");
-// From inside a part:
+// In-game message
 AddPlayerMessage("Hello!");
-
-// Via MoreModdingGoodies (if available)
-MoreOutput.Info("message");
-MoreOutput.Error("message", exception: ex);
-MoreOutput.Debug("message");
 ```
 
 ---
 
-## The.* Global Accessors
+## The.* Accessors
 
 ```csharp
-The.Player          // current player GameObject (returns GameObject, not Player part)
-The.Game            // current game instance (XRLGame)
-The.Core            // XRLCore instance
-The.CurrentTurn     // long - current turn number
-The.ZoneManager     // zone manager
-The.ActiveZone      // currently active zone (shorthand)
-The.Graveyard       // graveyard zone for destroyed objects
-The.ActionManager   // game's action manager
-The.ParticleManager // particle effects manager
-The.Color           // ColorUtility.Colors collection
-The.Speaker         // current conversation speaker (ConversationUI.Speaker)
-The.Listener        // current conversation listener (ConversationUI.Listener)
-The.Conversation    // current active conversation
-The.Manual          // XRLManual instance
-The.StringBuilder   // Reusable StringBuilder (cleared on access)
-The.CurrentContext  // Current SynchronizationContext
-The.UiContext       // UI thread synchronization context
-The.GameContext     // Game thread synchronization context
+The.Player      // Current player GameObject
+The.Game        // XRLGame instance
+The.ActiveZone  // Currently active zone
+The.ZoneManager
 ```
 
 ---
-
-## Grammar Helpers
-
-```csharp
-go.t()              // "the goblin"
-go.T()              // "The goblin"
-go.it               // "it"/"he"/"she"
-go.its              // "its"/"his"/"her"
-go.does("run")      // "runs" / "run"
-go.GetVerb("do")    // conjugated
-Grammar.Cardinal(n) // "three" / "37"
-n.Things("dram")    // "3 drams" / "1 dram"
-Messaging.XDidYToZ(Actor: actor, Verb: "take", Object: item);
-```
-
----
-
-## IComposite (for serializable nested objects)
-
-```csharp
-[Serializable]
-public class MyData : IComposite
-{
-    public string Name;
-    public int Value;
-    public bool WantFieldReflection => false;
-
-    public void Write(SerializationWriter Writer)
-    {
-        Writer.Write(Name);
-        Writer.Write(Value);
-    }
-
-    public void Read(SerializationReader Reader)
-    {
-        Name = Reader.ReadString();
-        Value = Reader.ReadInt32();
-    }
-}
-// Serialize: Writer.WriteComposite(list);
-// Deserialize: list = Reader.ReadCompositeList<MyData>();
-```
-
-## Common Utility Classes
-
-### String Extensions
-```csharp
-// Case insensitive comparison
-bool equal = str1.EqualsNoCase(str2);
-bool contains = str.ContainsNoCase(substring);
-
-// Qud-specific formatting
-string colored = "{{R|red text}}";
-string stripped = colored.Strip();
-
-// Grammar
-string cardinal = Grammar.Cardinal(5);  // "five"
-string cardinal = Grammar.Cardinal(37); // "37"
-```
-
-### Collection Extensions
-```csharp
-// XRL.Collections extensions
-bool isNullOrEmpty = list.IsNullOrEmpty();
-T value = dict.GetValue(key, defaultValue);
-bool added = dict.TryAdd(key, value);
-```
-
-### Math/Random
-```csharp
-// Rules.Stat.Random usage
-int roll = Rules.Stat.Random(1, 100);  // Random int between 1-100
-int roll = Stat.Random(1, 100);        // Same (commonly imported)
-
-// Gaussian/Normal distribution
-int gauss = Rules.Stat.Gaussian(low, high);
-int curve = Rules.Stat.Curve(low, high, slope);
-```
-
-### Color Utility
-```csharp
-// Color codes
-char r = The.Color['r'];  // red
-char g = The.Color['g'];  // green
-char w = The.Color['w'];  // white
-char k = The.Color['k'];  // black
-```
-
----
-
-## GameObjectFactory
-
-```csharp
-// Blueprint must exist in game XML
-// "Base_NPC" does NOT work — use actual blueprint names from ObjectBlueprints XMLs
-GameObject obj = GameObjectFactory.Factory.CreateObject("Snapjaw");
-
-// Create with modifications
-GameObject obj = GameObjectFactory.Factory.CreateObject("Blueprint", 
-    int Population,           // population context
-    bool HintNew,            // hint that object is newly created
-    bool HintInventory,      // hint about inventory creation
-    GameObject Parent,       // parent object context
-    string Special
-);
-
-// Create multiple objects
-List<GameObject> objects = new List<GameObject>();
-GameObjectFactory.Factory.CreateObjects("Blueprint", objects, quantity);
-```
-
----
-
-## WantToAutoexplore Part
-
-Route auto-explore toward a specific object:
-
-```csharp
-var autoexplore = vendor.RequirePart<WantToAutoexplore>();
-autoexplore.AdjacentAction = "MyMod_MyCommandID"; // command to fire when adjacent
-```
-
----
-
-## Journal API
-
-```csharp
-JournalAPI.AddMapNote(zoneID, "Note text", "Category");
-List<JournalMapNote> notes = JournalAPI.GetMapNotesForZone(zoneID);
-
-// JournalMapNote
-note.Tracked = true;
-note.Revealed = true;
-note.ZoneID
-note.Text
-note.Category
-note.Attributes  // List<string> of tags like "tyrir_autotrack"
-bool h = note.Has("attribute");
-```
-
----
-
-## Points of Interest
-
-```csharp
-List<PointOfInterest> points = GetPointsOfInterestEvent.GetFor(The.Player);
-points.Sort(PointOfInterest.Compare);
-PointOfInterest poi = points[0];
-GameObject obj = poi.Object;
-poi.Location  // Cell location if no object
-```
-
----
-
-## Look API
-
-```csharp
-XRL.UI.Look.ShowLooker(0, cell.X, cell.Y);
-```
-
----
-
-## ModManager API
-
-```csharp
-// Mod information
-ModInfo mod = ModManager.ModMap["ModID"];
-bool initialized = ModManager.Initialized;
-Version coreVersion = ModManager.CoreVersion;
-Version marketingVersion = ModManager.MarketingVersion;
-
-// Type discovery (useful for finding types by attribute)
-IEnumerable<Type> typesWithAttr = ModManager.GetTypesWithAttribute<MyAttribute>();
-IEnumerable<Type> assignableTypes = ModManager.GetTypesAssignableFrom(typeof(IPart));
-
-// Assembly access
-IEnumerable<Assembly> activeAssemblies = ModManager.ActiveAssemblies;
-IEnumerable<Type> activeTypes = ModManager.ActiveTypes;
-
-// Type resolution
-Type type = ModManager.ResolveType("Full.Type.Name");
-string typeName = ModManager.ResolveTypeName(typeof(MyClass));
-
-// Harmony (built-in)
-Harmony harmony = ModManager.Harmony; // "com.freeholdgames.cavesofqud"
-```
-
-## XRLCore API
-
-```csharp
-// Core access
-XRLCore core = XRLCore.Core;
-bool isCoreThread = XRLCore.IsCoreThread;
-bool gameRunning = XRLCore.GameRunning;
-
-// Logging
-XRLCore.Log("message");
-XRLCore.LogWarning("message");
-XRLCore.LogError("message");
-
-// Game time
-long turn = XRLCore.CurrentTurn;
-```
 
 ## File Locations (Windows)
 
 | Type | Path |
 |------|------|
-| Save games | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Synced\Saves` |
-| Configuration | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud` |
-| Game data | `[Steam]\steamapps\common\Caves of Qud\CoQ_Data\StreamingAssets\Base` |
-| Game DLC | `[Steam]\steamapps\common\Caves of Qud\CoQ_Data\StreamingAssets\DLC` |
-| Player log | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` |
-| Build log | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\build_log.txt` |
-| Workshop mods | `[Steam]\steamapps\workshop\content\333640\[mod_id]` |
-| Offline mods | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Mods` |
-| DLLs (QudLibPath) | `[Steam]\steamapps\common\Caves of Qud\CoQ_Data\Managed` |
+| Player.log | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Player.log` |
+| Mods | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Mods\` |
+| Saves | `%USERPROFILE%\AppData\LocalLow\Freehold Games\CavesOfQud\Synced\Saves` |
+| DLLs | `[Steam]\steamapps\common\Caves of Qud\CoQ_Data\Managed\Assembly-CSharp.dll` |
 
 ---
 
-## Blueprint & Object Creation
-
-### Understanding Object Blueprints
-
-Blueprints are defined in XML files located at:
-- `StreamingAssets/Base/ObjectBlueprints/` (base game)
-- `StreamingAssets/DLC/` (DLC content)
-
-Blueprint files:
-- `Creatures.xml` - NPCs and monsters
-- `Items.xml` - Weapons, armor, items
-- `Furniture.xml` - Containers, furniture
-- `Walls.xml` - Terrain and walls
-- `Widgets.xml` - Interactive objects
-- `Foods.xml` - Food and drinks
-
-### Blueprint Structure
-
-```xml
-<object Name="MyCreature" Inherits="BaseCreature">
-  <!-- Parts define behavior -->
-  <part Name="Render" DisplayName="My Creature" RenderString="c" 
-        Tile="Creatures/my_creature.png" ColorString="&W" />
-  <part Name="Physics" Weight="200" Category="Creatures" />
-  <part Name="Brain" Hostile="true" Factions="Beasts-100" />
-  <part Name="Body" Anatomy="Humanoid" />
-  <part Name="Combat" />
-  <part Name="Inventory" />
-  
-  <!-- Stats -->
-  <stat Name="Strength" Value="16" />
-  <stat Name="Agility" Value="14" />
-  <stat Name="Hitpoints" Value="20" />
-  
-  <!-- Mutations -->
-  <mutation Name="DarkVision" Level="6" />
-  
-  <!-- Tags for categorization -->
-  <tag Name="Creature" />
-  <tag Name="Class" Value="beast" />
-  
-  <!-- Integer properties -->
-  <intproperty Name="Bleeds" Value="1" />
-  
-  <!-- Remove inherited parts/tags -->
-  <removepart Name="Commerce" />
-  <removetag Name="SomeTag" />
-  
-  <!-- Builders add procedural generation -->
-  <builder Name="Roboticized" ChanceOneIn="20000" />
-</object>
-```
-
-### Creating Objects at Runtime
-
-```csharp
-// Create from blueprint (must exist in XML!)
-GameObject obj = GameObjectFactory.Factory.CreateObject("Snapjaw");
-GameObject obj = GameObjectFactory.Factory.CreateObject("BlueprintID", 
-    int Population = 0,
-    bool HintNew = false,
-    bool HintInventory = false,
-    GameObject Parent = null,
-    string Special = null
-);
-
-// Create multiple objects
-List<GameObject> objects = new List<GameObject>();
-GameObjectFactory.Factory.CreateObjects("BlueprintID", objects, quantity);
-
-// Important: Blueprints must be loaded from XML
-// "Base_NPC", "BaseObject" are NOT valid blueprint IDs
-// Use actual blueprint names like "Snapjaw", "Girshling"
-```
-
-### Common Blueprint Base Classes
-
-| Blueprint | Description |
-|-----------|-------------|
-| `Creature` | Base for all creatures |
-| `Animal` | Base for animals |
-| `BaseSultan` | Base for sultan NPCs |
-| `PhysicalObject` | Base for all physical objects |
-| `Item` | Base for items |
-| `Weapon` | Base for weapons |
-| `Armor` | Base for armor |
-| `Food` | Base for food items |
-| `Liquid` | Base for liquids |
-
-## Skills & Mutations XML
-
-### Skills Definition
-
-File: `StreamingAssets/Base/Skills.xml`
-
-```xml
-<skill Name="MySkill" Class="MySkill" Description="Skill description" 
-       Cost="100" Attribute="Strength" Snippet="snippet text"
-       Tile="Abilities/skill_icon.png" Foreground="y" Detail="R">
-  <power Name="Power Name" Cost="150" Attribute="Strength" Minimum="17"
-         Class="MySkill_PowerName" Prereq="OtherSkill_OtherPower"
-         Description="Power description"
-         Tile="Abilities/power_icon.png" Foreground="y" Detail="R" />
-</skill>
-```
-
-### Mutations Definition
-
-File: `StreamingAssets/Base/Mutations.xml`
-
-```xml
-<category Name="MyCategory" DisplayName="{{G|Category Name}}" 
-          Foreground="w" Detail="W" Property="MyMutationShift">
-  <mutation Name="MyMutation" Cost="4" MaxSelected="1" 
-            Class="MyMutation" Exclusions="OtherMutation"
-            BearerDescription="mutation bearers"
-            Tile="Mutations/mutation_icon.bmp">
-    <description>Mutation description text</description>
-    <leveltext>
-      <statline Name="Range" />
-      <statline Name="Cooldown" Unit="round" />
-    </leveltext>
-  </mutation>
-</category>
-```
-
-## Anatomy & Body Parts XML
-
-File: `StreamingAssets/Base/Bodies.xml`
-
-### Body Part Types
-
-```xml
-<bodyparttypes>
-  <bodyparttype Type="Head" Mortal="true" Appendage="true" 
-                UsuallyOn="Body" Branching="Lateral,Longitudinal,Vertical" />
-  <bodyparttype Type="Arm" Appendage="true" UsuallyOn="Body" />
-  <bodyparttype Type="Hand" DefaultBehavior="DefaultFist" 
-                Appendage="true" UsuallyOn="Arm" />
-  <bodyparttype Type="Back" DescriptionPrefix="Worn on" />
-</bodyparttypes>
-```
-
-### Body Anatomy Definitions
-
-```xml
-<anatomy Name="Humanoid">
-  <part Type="Body" Integral="true">
-    <part Type="Back" Laterality="Center" />
-    <part Type="Head" Laterality="Center">
-      <part Type="Face" Laterality="Center" />
-    </part>
-    <part Type="Arm" Laterality="Left">
-      <part Type="Hand" Laterality="Left" />
-    </part>
-    <part Type="Arm" Laterality="Right">
-      <part Type="Hand" Laterality="Right" />
-    </part>
-  </part>
-</anatomy>
-```
-
-## Conversation System XML
-
-File: `StreamingAssets/Base/Conversations.xml`
-
-### Conversation Structure
-
-```xml
-<conversation ID="MyConversation" Inherits="BaseConversation">
-  <!-- Start nodes (entry points) -->
-  <start ID="Default">
-    <text>Hello, traveler.</text>
-    <choice Target="End">Goodbye.</choice>
-  </start>
-  
-  <!-- Choice nodes (dialogue options) -->
-  <choice ID="AskAboutQuest" Target="QuestNode">
-    <text>Do you have a quest for me?</text>
-  </choice>
-  
-  <!-- Node definitions -->
-  <node ID="QuestNode">
-    <text>Yes, I need you to =quest.objective=.</text>
-    <part Name="GiveQuest" QuestID="MyQuest" />
-    <choice Target="Start">I'll do it.</choice>
-    <choice Target="End">No thanks.</choice>
-  </node>
-  
-  <!-- Conditional choices -->
-  <choice ID="SecretChoice" Target="SecretNode" 
-          IfReputationAtLeast="Loved"
-          IfHavePart="SomePart"
-          IfNotHaveTag="SomeTag">
-    <text>Can you tell me the secret?</text>
-  </choice>
-</conversation>
-```
-
-### Conversation Parts (C#)
-
-```csharp
-// Custom conversation parts inherit from IConversationPart
-public class MyConversationPart : IConversationPart
-{
-    public override bool WantEvent(int ID, int cascade)
-    {
-        return base.WantEvent(ID, cascade) 
-            || ID == EnteredConversationNodeEvent.ID;
-    }
-    
-    public override bool HandleEvent(EnteredConversationNodeEvent E)
-    {
-        // Perform actions when node is entered
-        return base.HandleEvent(E);
-    }
-}
-```
-
-### Conversation Text Variables
-
-```xml
-<text>Hello =player.name=, I am =speaker.name=.</text>
-<text>=subject.T= =verb:look= at you.</text>
-<text>=pronouns.siblingTerm=, =pronouns.formalAddressTerm=</text>
-<text>=subject.waterRitualLiquid=</text>
-```
-
-Available variables:
-- `=player.name=`, `=speaker.name=`, `=subject.name=`
-- `=player.formalAddressTerm=`, `=pronouns.siblingTerm=`
-- `=subject.T=`, `=subject.t=` (The subject / the subject)
-- `=verb:action=` (conjugated verb)
-- `=subject.waterRitualLiquid=`
-- `=object.nameSingle=`, `=object.name=`
-- `=recipe=`, `=mutation.name=`
-
-## Additional GameObject Methods
-
-### Energy & Action
-
-```csharp
-// Use energy (required for most actions)
-bool spent = go.UseEnergy(int Amount, string Type, 
-    string Context = null, int? MoveSpeed = null, 
-    bool Passive = false);
-
-// Movement
-bool moved = go.DirectMoveTo(Cell targetCell, 
-    int? EnergyCost = null, bool Forced = false,
-    bool IgnoreCombat = false, bool IgnoreGravity = false);
-
-bool moved = go.SystemMoveTo(Cell targetCell,
-    int? EnergyCost = null, bool Forced = false,
-    bool IgnoreCombat = true, bool IgnoreGravity = false,
-    bool NoStack = false);
-
-// Teleportation
-bool teleported = go.RandomTeleport(bool Swirl = false,
-    IPart Mutation = null, GameObject Device = null,
-    int MaxDistance = 0, bool InterruptMovement = true);
-```
-
-### Object Management
-
-```csharp
-// Remove from current location
-obj.RemoveFromContext(IEvent ParentEvent = null);
-bool removed = obj.TryRemoveFromContext(IEvent ParentEvent = null);
-
-// Release to pool (for performance)
-obj.Release(bool RemoveFromContext = true, bool AllowPool = true);
-GameObject.Release(ref GameObject obj, bool RemoveFromContext = true);
-
-// Stack management
-GameObject split = obj.Split(int count, bool NoRemove = false);
-GameObject one = obj.RemoveOne();  // remove one from stack
-
-// Destroy
-obj.Destroy(bool Silent = false, bool Obliterate = false);
-```
-
-### Blueprint & Type Checking
-
-```csharp
-// Get blueprint
-GameObjectBlueprint bp = obj.Blueprint;
-GameObjectBlueprint bp = obj.GetBlueprint();
-
-// Check inheritance
-bool descends = obj.GetBlueprint().DescendsFrom("BaseClass");
-bool isCreature = obj.Blueprint == "Creature"; // DON'T DO THIS
-
-// Check type
-bool isReal = obj.IsReal;           // Physics?.IsReal ?? false
-bool isTakeable = obj.Takeable;     // Physics?.Takeable ?? false
-```
-
-## Advanced Part Features
-
-### Turn Tick Options
-
-```csharp
-public override bool WantTurnTick() => false;     // every turn
-public override bool WantTenTurnTick() => false;  // every 10 turns
-public override bool WantHundredTurnTick() => false; // every 100 turns
-
-public override void TurnTick(long TurnNumber, int Amount)
-{
-    // Amount indicates how many ticks to process
-    base.TurnTick(TurnNumber, Amount);
-}
-
-public override void TenTurnTick(long TurnNumber, int Amount)
-{
-    // Process 10-turn tick
-}
-
-public override void HundredTurnTick(long TurnNumber, int Amount)
-{
-    // Process 100-turn tick
-}
-```
-
-### Rendering Hooks
-
-```csharp
-// Render tile
-public override bool RenderTile(ConsoleChar E)
-{
-    // Modify the character before rendering
-    E.Color = 'r';  // make it red
-    return true;    // return false to hide
-}
-
-// Render sound
-public override bool RenderSound(ConsoleChar C, ConsoleChar[,] Buffer)
-{
-    // Visualize sound
-    return true;
-}
-
-// Main render event
-public override bool Render(RenderEvent E)
-{
-    return base.Render(E);
-}
-
-// Overlay render (drawn on top)
-public override bool OverlayRender(RenderEvent E)
-{
-    return base.OverlayRender(E);
-}
-
-// Final render pass
-public override bool FinalRender(RenderEvent E, bool bAlt)
-{
-    return base.FinalRender(E, bAlt);
-}
-```
-
-### Priority Constants
-
-```csharp
-// IPart priority levels (affects serialization and event order)
-public override int Priority => IPart.PRIORITY_MEDIUM; // 45000 default
-
-// Available constants:
-IPart.PRIORITY_SKIP = int.MinValue;      // Skip event cascades
-IPart.PRIORITY_VERY_LOW = 15000;
-IPart.PRIORITY_LOW = 30000;
-IPart.PRIORITY_MEDIUM = 45000;           // Default
-IPart.PRIORITY_HIGH = 60000;
-IPart.PRIORITY_VERY_HIGH = 75000;
-IPart.PRIORITY_INTEGRAL = 90000;
-
-// Adjustments for fine-tuning:
-IPart.PRIORITY_ADJUST_VERY_SMALL = 1;
-IPart.PRIORITY_ADJUST_SMALL = 10;
-IPart.PRIORITY_ADJUST_MEDIUM = 100;
-IPart.PRIORITY_ADJUST_LARGE = 1000;
-IPart.PRIORITY_ADJUST_VERY_LARGE = 10000;
-```
-
-## String Extensions & Utilities
-
-```csharp
-// Case insensitive
-bool equal = str1.EqualsNoCase(str2);
-bool contains = str.ContainsNoCase(substring);
-int index = str.IndexOfNoCase(substring);
-
-// Color codes
-string colored = "{{R|red text}}";
-string stripped = colored.Strip();  // Remove color codes
-
-// Grammar
-string cardinal = 5.Cardinal();  // "five"
-string ordinal = 5.Ordinal();    // "5th"
-string things = 5.Things("item"); // "5 items"
-
-// Qud-specific
-string unique = "Name".MakeUnique(ref existingNames);
-string possessive = "John".Possessive();  // "John's"
-string a_or_an = "apple".AorAn();  // "an apple"
-```
-
-## Colors & Rendering
-
-```csharp
-// Color codes from The.Color
-char r = The.Color['r'];  // Red
-char g = The.Color['g'];  // Green
-char b = The.Color['b'];  // Blue
-char w = The.Color['w'];  // White
-char k = The.Color['k'];  // Black
-char y = The.Color['y'];  // Yellow
-char c = The.Color['c'];  // Cyan
-char m = The.Color['m'];  // Magenta
-
-// Detail colors (usually background)
-char detail = 'k';  // black detail
-
-// Color strings
-string redText = "&r";     // start red
-string normal = "&y";      // reset to yellow (normal)
-string colored = "{{r|red text}}";
-
-// ConsoleChar manipulation
-ConsoleChar c = new ConsoleChar('@', 'w', 'k'); // char, fore, back
-```
-
-## Wiki Reference Links
+## Wiki Links
 
 - Overview: https://wiki.cavesofqud.com/wiki/Modding:Overview
 - Events: https://wiki.cavesofqud.com/wiki/Modding:Events
 - Parts: https://wiki.cavesofqud.com/wiki/Modding:Parts
-- C# Scripting: https://wiki.cavesofqud.com/wiki/Modding:C_Sharp_Scripting
-- Adding Code to Player: https://wiki.cavesofqud.com/wiki/Modding:Adding_Code_to_the_Player
-- Key Mapping: https://wiki.cavesofqud.com/wiki/Modding:Key_Mapping_(Commands)
-- Options: https://wiki.cavesofqud.com/wiki/Modding:Options
-- Serialization: https://wiki.cavesofqud.com/wiki/Modding:Serialization_(Saving/Loading)
 - Harmony: https://wiki.cavesofqud.com/wiki/Modding:Harmony
-- Mod Configuration: https://wiki.cavesofqud.com/wiki/Modding:Mod_Configuration
-- Objects: https://wiki.cavesofqud.com/wiki/Modding:Objects
-- Activated Abilities: https://wiki.cavesofqud.com/wiki/Modding:Activated_Abilities
+- Mod Config: https://wiki.cavesofqud.com/wiki/Modding:Mod_Configuration
