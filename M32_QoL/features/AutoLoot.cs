@@ -142,9 +142,9 @@ namespace M32_QoL
                 {
                     if (obj == null || obj.IsPlayer()) continue;
 
-                    // Check containers first - loot contents
+                    // Check containers first - loot contents (but not from creatures/NPCs)
                     Inventory containerInv = obj.GetPart<Inventory>();
-                    if (containerInv != null && obj.LiquidVolume == null)
+                    if (containerInv != null && obj.LiquidVolume == null && !obj.IsCreature)
                     {
                         // Non-liquid container - handle contents
                         HandleContainerContents(obj, The.Player, itemsToLoot);

@@ -76,6 +76,7 @@ Pick up nearby items when moving.
 - Ownership checks (don't steal from friendlies)
 - Excludes harvestables, garbage, NoAutoget items
 - Dropped item cooldown with M32_DroppedTurn tracking
+- Excludes creature/NPC inventories
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.
