@@ -338,6 +338,22 @@ namespace M32_QoL
                     return false;
             }
 
+            // Check chests
+            Inventory containerInv = item.GetPart<Inventory>();
+            if (containerInv != null)
+            {
+                if (!M32_Options.AutoLootEmptyContainers)
+                {
+                    return false;
+                }
+                else
+                {
+                    // Disallow chests with items in them
+                    if (containerInv.GetObjectCountDirect() != 0)
+                        return false;
+                }
+            }
+
             // Check if dropped recently (using our custom M32_DroppedTurn property)
             // When the game sets DroppedByPlayer flag, we record the turn number in M32_DroppedTurn
             if (M32_Options.AutoLootDroppedCooldown >= -1 && item.HasIntProperty("DroppedByPlayer"))
