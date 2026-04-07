@@ -12,6 +12,7 @@ Trade with all friendly merchants in your current zone at once. No more walking 
 
 - Automatically selects the merchant with the best services (identify, repair, recharge) as the host merchant
 - Closes trade window after trade for all those fast bois out there (and totally not to avoid weird bugs)
+- Use keybind while not in a menu or user interface
 
 ### Consolidate Liquids `[Shift+L]`
 
@@ -20,7 +21,7 @@ Merge liquids of the same type into their largest containers. Keeps your invento
 - Smart ratio-based matching to support mixed liquids
 - Uses the containers the liquids are already using to avoid bad things from happening
 - Safely excludes neutron flux (because a thousand suns is pretty heavy)
-- Works on all liquid containers in your inventory
+- Use keybind while not in a menu or user interface
 
 ### Stacked Inventory `[Automatic]`
 
@@ -28,6 +29,7 @@ Automatically merges compatible item stacks when you open your inventory or trad
 
 - Stacks items with identical properties, modifications, and appearance
 - Containers with stuff in them don't stack
+- Items with cells or liquid in them don't stack
 
 ### Auto Loot `[Automatic]`
 
@@ -35,8 +37,8 @@ Automatically picks up nearby items when you move. Highly configurable to fit yo
 
 - Loots items from current tile plus the adjacent tiles
 - Works when you move so you don't have to think about it, also integrates with the auto-explore system
-- Respects ownership (won't steal from friendly factions, optional)
-- Weight capacity checks to prevent over-encumbrance (optional)
+- Highly configurable to suit your preferences
+- Supports individual item filtering via the `autoloot.json` file in the mod folder
 
 ## Keybinds
 
