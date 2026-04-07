@@ -77,6 +77,7 @@ Pick up nearby items when moving.
 - Excludes harvestables, garbage, NoAutoget items
 - Dropped item cooldown with M32_DroppedTurn tracking
 - Excludes creature/NPC inventories
+- Excludes butcherable items (corpses)
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.

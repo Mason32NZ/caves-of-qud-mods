@@ -300,6 +300,10 @@ namespace M32_QoL
             if (item.GetPart("Harvestable") != null)
                 return false;
 
+            // Skip butcherable items (corpses that can be butchered for meat, etc.)
+            if (item.GetPart("Butcherable") != null)
+                return false;
+
             // Skip garbage/trash items
             // These are world decorations ("gettable terrain") that shouldn't be looted
             // Note: They have Takeable="true" but are marked with a Garbage part
