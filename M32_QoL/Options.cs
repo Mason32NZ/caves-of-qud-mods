@@ -28,7 +28,7 @@ namespace M32_QoL
         public static bool AutoLootCheckWeight;
 
         [OptionFlag]
-        public static bool AutoLootEmptyContainers;
+        public static bool AutoLootFurniture;
 
         [OptionFlag]
         public static bool AutoLootCorpses;

@@ -81,6 +81,7 @@ Pick up nearby items when moving.
 - Excludes butcherable items (corpses)
 - Configurable max item weight limit
 - Separate toggle for organic limbs (arms, legs, heads, faces)
+- Separate toggle for furniture (chests, beds, chairs, etc.)
 - `autoloot.json` whitelist/blacklist support (bypasses category filters but respects required checks)
 
 ### Consolidate Liquids `[Shift+L]`

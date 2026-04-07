@@ -47,10 +47,10 @@
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
         <helptext>Don't auto-loot items you dropped within this many turns. -1 = never pickup dropped items.</helptext>
     </option>
-    <option ID="Option_M32QoL_AutoLootEmptyContainers" DisplayText="Pickup Empty Chests"
-            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
+    <option ID="Option_M32QoL_AutoLootFurniture" DisplayText="Pickup Furniture (Use at your own risk)"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="No"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
-        <helptext>Auto-loot empty non-liquid containers (chests, sacks). Contents are always looted from containers.</helptext>
+        <helptext>Auto-loot furniture objects (chests, beds, chairs, etc.). Furniture with items inside will not be picked up.</helptext>
     </option>
     <option ID="Option_M32QoL_AutoLootBouldersStones" DisplayText="Pickup Boulders and Stones"
             Category="Mod: M32's QoL" Type="Checkbox" Default="No"

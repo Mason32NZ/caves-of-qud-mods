@@ -296,7 +296,7 @@ namespace M32_QoL
             }
 
             // Optionally loot the empty container
-            if (M32_Options.AutoLootEmptyContainers && containerInv.GetObjectCountDirect() == 0)
+            if (M32_Options.AutoLootFurniture && containerInv.GetObjectCountDirect() == 0)
             {
                 if (ShouldAutoLoot(container, player) && !itemsToLoot.Contains(container))
                 {
@@ -428,22 +428,21 @@ namespace M32_QoL
                     if (isLimb)
                         return false;
                 }
-            }
 
-            // Check chests
-            Inventory containerInv = item.GetPart<Inventory>();
-            if (containerInv != null)
-            {
-                if (!M32_Options.AutoLootEmptyContainers)
+                // Check furniture (bypassable via whitelist)
+                if (!M32_Options.AutoLootFurniture)
                 {
-                    return false;
-                }
-                else
-                {
-                    // Disallow chests with items in them
-                    if (containerInv.GetObjectCountDirect() != 0)
+                    if (item.HasTag("Furniture"))
                         return false;
                 }
+            }
+
+            // Furniture with items inside is never picked up (even if bypassed by whitelist)
+            if (item.HasTag("Furniture"))
+            {
+                Inventory furnitureInv = item.GetPart<Inventory>();
+                if (furnitureInv != null && furnitureInv.GetObjectCountDirect() > 0)
+                    return false;
             }
 
             // Check if dropped recently (using our custom M32_DroppedTurn property)
