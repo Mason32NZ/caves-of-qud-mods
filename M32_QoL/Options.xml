@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <options>
 
-    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="{{M|Feature: Zone Trade}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')"
+    <option ID="Option_M32QoL_EnableZoneTrade" DisplayText="{{M|Feature: Zone Trade}} (Requires keybind to use)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, use the key bind to trade with all friendly merchants in the current zone at once.</helptext>
     </option>
 
-    <option ID="Option_M32QoL_EnableConsolidateLiquids" DisplayText="{{M|Feature: Consolidate Liquids}} (Requires Keybind - Check Control Mappings under 'Mod: M32's QoL')"
+    <option ID="Option_M32QoL_EnableConsolidateLiquids" DisplayText="{{M|Feature: Consolidate Liquids}} (Requires keybind to use)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, use the key bind to consolidate liquids of the same type into larger containers. Only uses the containers the liquids are already using for many reasons. Does not work if you are in the Inventory/Trade UI, use when you are in-game. Neutron flux is never consolidated to avoid dying under the weight of a thousand suns.</helptext>
     </option>
 
-    <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}}"
+    <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}} (Works automatically when enabled)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Liquid containers can stack if empty; other containers do not stack. Helps reduce unnecessary scrolling when looking at your inventory.</helptext>
     </option>
 
-    <option ID="Option_M32QoL_EnableAutoLoot" DisplayText="{{M|Feature: Auto Loot}}"
+    <option ID="Option_M32QoL_EnableAutoLoot" DisplayText="{{M|Feature: Auto Loot}} (Works automatically when enabled)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>Automatically pick up nearby items when moving.</helptext>
     </option>
@@ -34,6 +34,12 @@
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes"
             Requires="Option_M32QoL_EnableAutoLoot==Yes">
         <helptext>Only loot items if you won't become over-encumbered.</helptext>
+    </option>
+    <option ID="Option_M32QoL_AutoLootMaxWeight" DisplayText="Max Item Weight"
+            Category="Mod: M32's QoL" Type="Slider"
+            Min="-1" Max="1000" Increment="1" Default="-1"
+            Requires="Option_M32QoL_EnableAutoLoot==Yes">
+        <helptext>Don't auto-loot items heavier than this weight (in pounds). -1 = no limit.</helptext>
     </option>
     <option ID="Option_M32QoL_AutoLootDroppedCooldown" DisplayText="Pickup Player Dropped Items After X Turns"
             Category="Mod: M32's QoL" Type="Slider"

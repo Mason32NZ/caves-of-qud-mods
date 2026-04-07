@@ -78,6 +78,7 @@ Pick up nearby items when moving.
 - Dropped item cooldown with M32_DroppedTurn tracking
 - Excludes creature/NPC inventories
 - Excludes butcherable items (corpses)
+- Configurable max item weight limit
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.

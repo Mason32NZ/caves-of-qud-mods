@@ -389,6 +389,10 @@ namespace M32_QoL
                     return false;
             }
 
+            // Check max weight limit
+            if (M32_Options.AutoLootMaxWeight >= 0 && item.Weight > M32_Options.AutoLootMaxWeight)
+                return false;
+
             // Check if in combat and combat looting is disabled
             if (!M32_Options.AutoLootInCombat && player.IsInCombat())
                 return false;

@@ -41,5 +41,8 @@ namespace M32_QoL
 
         [OptionFlag]
         public static bool AutoLootSkipOwned;
+
+        [OptionFlag]
+        public static int AutoLootMaxWeight;
     }
 }
