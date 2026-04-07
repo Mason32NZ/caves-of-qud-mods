@@ -41,6 +41,7 @@
 - [x] Exclude garbage items (Garbage part)
 - [x] Implement weight capacity checking
 - [x] Implement dropped item cooldown (M32_DroppedTurn property)
+- [x] Add autoloot.json whitelist/blacklist support
 
 ### Consolidate Liquids Feature
 - [x] Create ConsolidateLiquids.cs
@@ -80,6 +81,7 @@ Pick up nearby items when moving.
 - Excludes butcherable items (corpses)
 - Configurable max item weight limit
 - Separate toggle for organic limbs (arms, legs, heads, faces)
+- `autoloot.json` whitelist/blacklist support (bypasses category filters but respects required checks)
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.
@@ -100,6 +102,7 @@ M32_QoL/
 ├── HarmonyInitializer.cs
 ├── PlayerMutator.cs
 ├── LoadGameHandler.cs
+├── autoloot.json          # Optional: whitelist/blacklist for auto-loot
 └── features/
     ├── AutoLoot.cs
     ├── ConsolidateLiquids.cs
@@ -142,6 +145,21 @@ Patch `TradeUI.PerformOffer` to return `CLOSE` instead of `REFRESH`:
 if (__result == TradeUI.OfferStatus.REFRESH || __result == TradeUI.OfferStatus.TOP)
     __result = TradeUI.OfferStatus.CLOSE;
 ```
+
+### autoloot.json Whitelist/Blacklist
+
+Create `M32_QoL/autoloot.json` for per-item auto-loot control:
+
+```json
+{
+    "allow": ["Item Name 1", "Item Name 2"],
+    "deny": ["Item Name 3"]
+}
+```
+
+- **`allow`**: Items that bypass category filters (harvestable, butcherable, garbage, boulders, corpses, limbs)
+- **`deny`**: Items that are always excluded from auto-loot
+- **Required checks still apply**: ownership, takeable, liquid pools, containers, dropped cooldown, weight, combat
 
 ---
 

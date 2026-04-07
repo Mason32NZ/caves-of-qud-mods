@@ -10,12 +10,69 @@ using XRL.World.Parts;
 namespace M32_QoL
 {
     /// <summary>
+    /// Configuration class for autoloot.json whitelist/blacklist
+    /// </summary>
+    [Serializable]
+    public class AutoLootConfig
+    {
+        public List<string> allow = new List<string>();
+        public List<string> deny = new List<string>();
+    }
+
+    /// <summary>
     /// Auto Loot feature - automatically picks up nearby items when moving.
     /// Integrates with auto-explore to add items as waypoints.
     /// </summary>
     [Serializable]
     public class M32_AutoLootPart : IScribedPart
     {
+        private static AutoLootConfig _config;
+        private static bool _configLoaded = false;
+        private static AutoLootConfig Config
+        {
+            get
+            {
+                if (_config == null && !_configLoaded)
+                {
+                    try
+                    {
+                        string modPath = XRL.ModManager.GetMod("M32_QoL")?.Path;
+                        if (!string.IsNullOrEmpty(modPath))
+                        {
+                            string path = System.IO.Path.Combine(modPath, "autoloot.json");
+                            if (System.IO.File.Exists(path))
+                            {
+                                string json = System.IO.File.ReadAllText(path);
+                                _config = Newtonsoft.Json.JsonConvert.DeserializeObject<AutoLootConfig>(json);
+                                int allowCount = _config?.allow?.Count ?? 0;
+                                int denyCount = _config?.deny?.Count ?? 0;
+                                UnityEngine.Debug.Log($"[M32_QoL] Successfully loaded autoloot.json ({allowCount} allowed, {denyCount} denied)");
+                            }
+                            else
+                            {
+                                UnityEngine.Debug.Log("[M32_QoL] autoloot.json not found, using defaults");
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.LogWarning("[M32_QoL] Could not find mod path for autoloot.json");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError($"[M32_QoL] Failed to load autoloot.json: {ex.Message}");
+                    }
+                    finally
+                    {
+                        _configLoaded = true;
+                        if (_config == null)
+                            _config = new AutoLootConfig();
+                    }
+                }
+                return _config;
+            }
+        }
+
         private Cell _lastCell = null;
         private long _lastMoveTurn = -1;
 
@@ -295,70 +352,82 @@ namespace M32_QoL
             // Skip if not takeable
             if (!item.IsTakeable()) return false;
 
-            // Skip harvestable objects (plants, trees, etc.)
-            // These are world decorations meant to be walked over to harvest, not picked up
-            if (item.GetPart("Harvestable") != null)
-                return false;
-
-            // Skip butcherable items (corpses that can be butchered for meat, etc.)
-            if (item.GetPart("Butcherable") != null)
-                return false;
-
-            // Skip garbage/trash items
-            // These are world decorations ("gettable terrain") that shouldn't be looted
-            // Note: They have Takeable="true" but are marked with a Garbage part
-            if (item.GetPart("Garbage") != null)
-                return false;
-
-            // Skip items marked as NoAutoget
-            if (item.HasTagOrProperty("NoAutoget")) return false;
-
             // Skip liquid puddles/pools (MaxVolume < 0 means on ground, not in container)
             if (item.LiquidVolume != null && item.LiquidVolume.MaxVolume < 0)
                 return false;
 
-            // Check boulders/stones by blueprint name
-            if (!M32_Options.AutoLootBouldersStones)
-            {
-                string bp = item.Blueprint;
-                if (!string.IsNullOrEmpty(bp))
-                {
-                    // List of boulder and stone blueprint names
-                    var boulderAndStoneBlueprints = new List<string>
-                    {
-                        "SmallBoulder",
-                        "SmallBoulder Grey",
-                        "MediumBoulder",
-                        "MediumBoulder Grey",
-                        "LargeBoulder",
-                        "LargeBoulder Grey",
-                        "Small Stone",
-                        "Large Stone"
-                    };
+            // Check autoloot.json whitelist/blacklist (case-insensitive)
+            bool skipCategoryFilters = false;
+            string displayName = item.DisplayNameStripped;
 
-                    if (boulderAndStoneBlueprints.Contains(bp))
+            if (!string.IsNullOrEmpty(displayName) && Config != null)
+            {
+                // Deny list takes priority
+                if (Config.deny != null && Config.deny.Any(d => d.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
+                    return false;
+
+                // Allow list bypasses category filters
+                if (Config.allow != null && Config.allow.Any(a => a.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
+                    skipCategoryFilters = true;
+            }
+
+            // CATEGORY FILTERS - can be bypassed by whitelist
+            if (!skipCategoryFilters)
+            {
+                // Skip harvestable objects (plants, trees, etc.)
+                if (item.GetPart("Harvestable") != null)
+                    return false;
+
+                // Skip butcherable items (corpses that can be butchered for meat, etc.)
+                if (item.GetPart("Butcherable") != null)
+                    return false;
+
+                // Skip garbage/trash items
+                if (item.GetPart("Garbage") != null)
+                    return false;
+
+                // Skip items marked as NoAutoget
+                if (item.HasTagOrProperty("NoAutoget"))
+                    return false;
+
+                // Check boulders/stones by blueprint name
+                if (!M32_Options.AutoLootBouldersStones)
+                {
+                    string bp = item.Blueprint;
+                    if (!string.IsNullOrEmpty(bp))
+                    {
+                        var boulderAndStoneBlueprints = new List<string>
+                        {
+                            "SmallBoulder", "SmallBoulder Grey",
+                            "MediumBoulder", "MediumBoulder Grey",
+                            "LargeBoulder", "LargeBoulder Grey",
+                            "Small Stone", "Large Stone"
+                        };
+
+                        if (boulderAndStoneBlueprints.Contains(bp))
+                            return false;
+                    }
+                }
+
+                // Check if item is an organic limb (has AggregatedIngredient tag)
+                string aggregatedIngredient = item.GetStringProperty("AggregatedIngredient");
+                bool isLimb = aggregatedIngredient == "Limb" ||
+                              aggregatedIngredient == "Face" ||
+                              aggregatedIngredient == "Head";
+
+                // Check corpses (exclude limbs - they have separate toggle)
+                if (!M32_Options.AutoLootCorpses)
+                {
+                    if (item.GetInventoryCategory() == "Corpses" && !isLimb)
                         return false;
                 }
-            }
 
-            // Check if item is an organic limb (has AggregatedIngredient tag)
-            string aggregatedIngredient = item.GetStringProperty("AggregatedIngredient");
-            bool isLimb = aggregatedIngredient == "Limb" ||
-                          aggregatedIngredient == "Face" ||
-                          aggregatedIngredient == "Head";
-
-            // Check corpses (exclude limbs - they have separate toggle)
-            if (!M32_Options.AutoLootCorpses)
-            {
-                if (item.GetInventoryCategory() == "Corpses" && !isLimb)
-                    return false;
-            }
-
-            // Check limbs
-            if (!M32_Options.AutoLootLimbs)
-            {
-                if (isLimb)
-                    return false;
+                // Check limbs
+                if (!M32_Options.AutoLootLimbs)
+                {
+                    if (isLimb)
+                        return false;
+                }
             }
 
             // Check chests
