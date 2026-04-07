@@ -331,10 +331,23 @@ namespace M32_QoL
                 }
             }
 
-            // Check corpses
+            // Check if item is an organic limb (has AggregatedIngredient tag)
+            string aggregatedIngredient = item.GetStringProperty("AggregatedIngredient");
+            bool isLimb = aggregatedIngredient == "Limb" ||
+                          aggregatedIngredient == "Face" ||
+                          aggregatedIngredient == "Head";
+
+            // Check corpses (exclude limbs - they have separate toggle)
             if (!M32_Options.AutoLootCorpses)
             {
-                if (item.GetInventoryCategory() == "Corpses")
+                if (item.GetInventoryCategory() == "Corpses" && !isLimb)
+                    return false;
+            }
+
+            // Check limbs
+            if (!M32_Options.AutoLootLimbs)
+            {
+                if (isLimb)
                     return false;
             }
 

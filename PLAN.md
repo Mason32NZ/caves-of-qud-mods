@@ -79,6 +79,7 @@ Pick up nearby items when moving.
 - Excludes creature/NPC inventories
 - Excludes butcherable items (corpses)
 - Configurable max item weight limit
+- Separate toggle for organic limbs (arms, legs, heads, faces)
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.

@@ -44,5 +44,8 @@ namespace M32_QoL
 
         [OptionFlag]
         public static int AutoLootMaxWeight;
+
+        [OptionFlag]
+        public static bool AutoLootLimbs;
     }
 }
