@@ -323,10 +323,20 @@ namespace M32_QoL
                 string bp = item.Blueprint;
                 if (!string.IsNullOrEmpty(bp))
                 {
-                    // Match boulders: SmallBoulder, MediumBoulder, LargeBoulder (and variants like SmallBoulder Grey)
-                    // Match stones: Small Stone, Large Stone
-                    if (bp.StartsWith("SmallBoulder") || bp.StartsWith("MediumBoulder") || bp.StartsWith("LargeBoulder") ||
-                        bp == "Small Stone" || bp == "Large Stone")
+                    // List of boulder and stone blueprint names
+                    var boulderAndStoneBlueprints = new List<string>
+                    {
+                        "SmallBoulder",
+                        "SmallBoulder Grey",
+                        "MediumBoulder",
+                        "MediumBoulder Grey",
+                        "LargeBoulder",
+                        "LargeBoulder Grey",
+                        "Small Stone",
+                        "Large Stone"
+                    };
+
+                    if (boulderAndStoneBlueprints.Contains(bp))
                         return false;
                 }
             }
