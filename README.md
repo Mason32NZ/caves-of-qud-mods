@@ -12,7 +12,8 @@ Trade with all friendly merchants in your current zone at once. No more walking 
 
 - Automatically selects the merchant with the best services (identify, repair, recharge) as the host merchant
 - Closes trade window after trade for all those fast bois out there (and totally not to avoid weird bugs)
-- Use keybind while not in a menu or user interface
+
+(Note: You must use the keybind while **NOT** in a menu or user interface for it to work)
 
 ### Consolidate Liquids `[Shift+L]`
 
@@ -21,7 +22,8 @@ Merge liquids of the same type into their largest containers. Keeps your invento
 - Smart ratio-based matching to support mixed liquids
 - Uses the containers the liquids are already using to avoid bad things from happening
 - Safely excludes neutron flux (because a thousand suns is pretty heavy)
-- Use keybind while not in a menu or user interface
+
+(Note: You must use the keybind while **NOT** in a menu or user interface for it to work)
 
 ### Stacked Inventory `[Automatic]`
 
