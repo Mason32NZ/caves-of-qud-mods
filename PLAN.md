@@ -83,6 +83,7 @@ Pick up nearby items when moving.
 - Separate toggle for organic limbs (arms, legs, heads, faces)
 - Separate toggle for furniture (chests, beds, chairs, etc.)
 - `autoloot.json` whitelist/blacklist support (bypasses category filters but respects required checks)
+- Always excludes invalid blueprint items (`[invalid blueprint:...]`)
 
 ### Consolidate Liquids `[Shift+L]`
 Merge same-type liquids into largest containers.

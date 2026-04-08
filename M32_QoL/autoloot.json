@@ -1,8 +1,13 @@
 {
     "allow": [
-        "Albino Ape Heart",
-        "Black Puma Haunch",
-        "Ogre Ape Heart"
+        "albino ape heart",
+        "black puma haunch",
+        "ogre ape heart"
     ],
-    "deny": []
+    "deny": [
+        "ashes",
+        "bones",
+        "broken snail egg",
+        "molting basilisk husk"
+    ]
 }

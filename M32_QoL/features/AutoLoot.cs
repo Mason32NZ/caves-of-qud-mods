@@ -345,6 +345,12 @@ namespace M32_QoL
             if (item == null || player == null) return false;
             if (item.IsPlayer()) return false;
 
+            // Always exclude invalid blueprint items (malformed/placeholder objects)
+            // NOT bypassable by whitelist - these should never be picked up
+            string displayName = item.DisplayNameStripped;
+            if (!string.IsNullOrEmpty(displayName) && displayName.StartsWith("[invalid blueprint:"))
+                return false;
+
             // Check if owned and should skip
             if (ShouldSkipOwned(item))
                 return false;
@@ -358,7 +364,6 @@ namespace M32_QoL
 
             // Check autoloot.json whitelist/blacklist (case-insensitive)
             bool skipCategoryFilters = false;
-            string displayName = item.DisplayNameStripped;
 
             if (!string.IsNullOrEmpty(displayName) && Config != null)
             {
