@@ -2,7 +2,7 @@
 
 Quality of life improvements for Caves of Qud. Spend less time managing your inventory and looking for loot, and more time exploring the caves of Qud.
 
-Trade with all merchants at once, auto loot as you go, auto stack things for a clean inventory, and consolidate liquids!
+**Trade with all** merchants at once, **auto loot** as you go, auto stack things for a **clean inventory**, and **consolidate liquids**!
 
 ## Features
 
@@ -27,11 +27,7 @@ Merge liquids of the same type into their largest containers. Keeps your invento
 
 ### Stacked Inventory `[Automatic]`
 
-Automatically merges compatible item stacks when you open your inventory or trade screen. Reduces scrolling and keeps similar items together.
-
-- Stacks items with identical properties, modifications, and appearance
-- Containers with stuff in them don't stack
-- Items with cells or liquid in them don't stack
+Automatically stacks compatible items when you open your inventory or trade screen. Reduces scrolling and keeps similar items together.
 
 ### Auto Loot `[Automatic]`
 
