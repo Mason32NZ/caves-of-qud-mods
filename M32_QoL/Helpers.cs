@@ -149,13 +149,41 @@ namespace M32_QoL
                 }
                 else
                 {
-                    // Non-liquid items: check Number property, tags, then deep SameAs comparison
+                    // Non-liquid items: multiple explicit checks for stacking compatibility
+
+                    // Check Number property (for numbered items like scrolls)
                     if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
                         return false;
 
+                    // Check tags - items with different tag sets don't stack
                     if (!HaveSameTags(a, b))
                         return false;
 
+                    // Check modifications - items with different mod types don't stack
+                    var modsA = a.PartsList != null ? a.PartsList.OfType<IModification>().Select(m => m.GetType().Name).OrderBy(n => n).ToList() : new List<string>();
+                    var modsB = b.PartsList != null ? b.PartsList.OfType<IModification>().Select(m => m.GetType().Name).OrderBy(n => n).ToList() : new List<string>();
+                    if (modsA.Count != modsB.Count || !modsA.SequenceEqual(modsB))
+                        return false;
+
+                    // Check render properties - items with different appearances don't stack
+                    Render renderA = a.GetPart<Render>();
+                    Render renderB = b.GetPart<Render>();
+                    if (renderA?.ColorString != renderB?.ColorString)
+                        return false;
+                    if (renderA?.DetailColor != renderB?.DetailColor)
+                        return false;
+                    if (renderA?.Tile != renderB?.Tile)
+                        return false;
+                    if (renderA?.RenderString != renderB?.RenderString)
+                        return false;
+
+                    // Check EnergyCell charge level - cells only stack at same charge
+                    EnergyCell cellA = a.GetPart<EnergyCell>();
+                    EnergyCell cellB = b.GetPart<EnergyCell>();
+                    if (cellA != null && cellB != null && cellA.Charge != cellB.Charge)
+                        return false;
+
+                    // DEEP COMPARISON: Use game's built-in SameAs as final safety net
                     if (!a.SameAs(b))
                         return false;
                 }
