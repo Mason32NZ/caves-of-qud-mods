@@ -20,47 +20,45 @@ namespace M32_QoL
         private static readonly Queue<GameObject> _removalQueue = new Queue<GameObject>();
 
         /// <summary>
-        /// Gets all modification parts from a game object.
+        /// Checks if two items have identical tag sets.
+        /// Combines blueprint tags AND runtime Property tags.
         /// </summary>
-        private static List<IPart> GetModifications(GameObject obj)
+        private static bool HaveSameTags(GameObject a, GameObject b)
         {
-            if (obj == null) return new List<IPart>();
-            
-            try
-            {
-                return obj.PartsList
-                    .Where(p => p is IModification)
-                    .ToList();
-            }
-            catch
-            {
-                return new List<IPart>();
-            }
-        }
+            // Get blueprint tags
+            var blueprintA = a?.GetBlueprint();
+            var blueprintB = b?.GetBlueprint();
 
-        /// <summary>
-        /// Checks if two items have identical modifications.
-        /// </summary>
-        private static bool HaveSameModifications(GameObject a, GameObject b)
-        {
-            var modsA = GetModifications(a);
-            var modsB = GetModifications(b);
+            // Collect all tag keys from both blueprint and runtime properties
+            var tagsA = new HashSet<string>();
+            var tagsB = new HashSet<string>();
 
-            if (modsA.Count != modsB.Count)
+            // Blueprint tags
+            if (blueprintA?.Tags != null)
+                tagsA.UnionWith(blueprintA.Tags.Keys);
+            if (blueprintB?.Tags != null)
+                tagsB.UnionWith(blueprintB.Tags.Keys);
+
+            // Runtime properties (using reflection to access private _Property field)
+            var propA = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(a) as Dictionary<string, string>;
+            var propB = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(b) as Dictionary<string, string>;
+
+            if (propA != null)
+                tagsA.UnionWith(propA.Keys);
+            if (propB != null)
+                tagsB.UnionWith(propB.Keys);
+
+            // Check if tag key sets are identical
+            if (tagsA.Count != tagsB.Count)
                 return false;
 
-            if (modsA.Count == 0 && modsB.Count == 0)
-                return true;
-
-            var modNamesA = modsA.Select(m => m.GetType().Name).OrderBy(n => n).ToList();
-            var modNamesB = modsB.Select(m => m.GetType().Name).OrderBy(n => n).ToList();
-
-            return modNamesA.SequenceEqual(modNamesB);
+            return tagsA.SetEquals(tagsB);
         }
 
         /// <summary>
         /// Checks if two items can be stacked together.
         /// Only liquid containers can stack (if empty). Non-liquid containers never stack.
+        /// Uses deep comparison via SameAs() for parts and properties.
         /// </summary>
         public static bool CanStackForMerge(GameObject a, GameObject b)
         {
@@ -68,13 +66,6 @@ namespace M32_QoL
             if (a == b) return false;
             if (a.Blueprint != b.Blueprint) return false;
             if (a.HasTag("Unique") || b.HasTag("Unique")) return false;
-
-            // Never stack items that have a cell (battery) in them
-            EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
-            EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
-            if ((socketA != null && socketA.Cell != null) || 
-                (socketB != null && socketB.Cell != null))
-                return false;
 
             // Never stack Data Disks (each has unique data)
             if (a.Blueprint == "DataDisk" || b.Blueprint == "DataDisk") return false;
@@ -84,53 +75,59 @@ namespace M32_QoL
 
             try
             {
-                // Check liquid volumes - items with liquids don't stack
-                LiquidVolume volA = a.LiquidVolume;
-                LiquidVolume volB = b.LiquidVolume;
-                if (volA != null && volA.Volume > 0) return false;
-                if (volB != null && volB.Volume > 0) return false;
-
-                // Check modifications - items with different mod types should not stack
-                if (!HaveSameModifications(a, b))
+                // Never stack items that have a cell (battery) socket with cell inserted
+                EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
+                EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
+                if ((socketA != null && socketA.Cell != null) ||
+                    (socketB != null && socketB.Cell != null))
                     return false;
 
                 // Check containers - only LIQUID containers can stack (and must be empty)
+                LiquidVolume volA = a.LiquidVolume;
+                LiquidVolume volB = b.LiquidVolume;
                 Inventory invA = a.GetPart<Inventory>();
                 Inventory invB = b.GetPart<Inventory>();
-                
+
                 if (invA != null || invB != null)
                 {
                     bool aIsLiquidContainer = volA != null;
                     bool bIsLiquidContainer = volB != null;
-                    
-                    // Non-liquid containers cannot stack
-                    if ((invA != null && !aIsLiquidContainer) || (invB != null && !bIsLiquidContainer))
-                        return false;
-                    
-                    // Both are liquid containers - check if empty
+
                     bool aHasContents = invA != null && invA.GetObjectCountDirect() > 0;
                     bool bHasContents = invB != null && invB.GetObjectCountDirect() > 0;
-                    if (aHasContents || bHasContents) return false;
+
+                    // Non-liquid containers with items cannot stack
+                    if ((aHasContents && !aIsLiquidContainer) || (bHasContents && !bIsLiquidContainer)) return false;
+
+                    // Liquid containers with different liquids or amounts cannot stack
+                    if (volA != null && volB != null)
+                    {
+                        // Both are liquid containers - check if they have the same liquid and amount
+                        // If volumes differ, they cannot stack
+                        if (volA.Volume != volB.Volume)
+                            return false;
+
+                        // If both have liquid, check composition
+                        if (volA.Volume > 0 && !volA.LiquidSameAs(volB))
+                            return false;
+                    }
+                    else if (volA != null || volB != null)
+                    {
+                        // Only one is a liquid container - cannot stack
+                        return false;
+                    }
                 }
 
                 // Check Number property (for numbered items like scrolls)
                 if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
                     return false;
 
-                // Check visual properties - items with different appearances don't stack
-                Render renderA = a.GetPart<Render>();
-                Render renderB = b.GetPart<Render>();
-
-                if (renderA?.ColorString != renderB?.ColorString)
+                // Check tags - items with different tag sets don't stack
+                if (!HaveSameTags(a, b))
                     return false;
 
-                if (renderA?.DetailColor != renderB?.DetailColor)
-                    return false;
-
-                if (renderA?.Tile != renderB?.Tile)
-                    return false;
-
-                if (renderA?.RenderString != renderB?.RenderString)
+                // DEEP COMPARISON: Use game's built-in SameAs for parts and properties
+                if (!a.SameAs(b))
                     return false;
 
                 return true;
