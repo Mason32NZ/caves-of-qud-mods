@@ -13,7 +13,7 @@
 
     <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}} (Works automatically when enabled)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
-        <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Liquid containers can stack if empty; other containers do not stack. Helps reduce unnecessary scrolling when looking at your inventory.</helptext>
+        <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Helps reduce unnecessary scrolling when looking at your inventory.</helptext>
     </option>
 
     <option ID="Option_M32QoL_EnableAutoLoot" DisplayText="{{M|Feature: Auto Loot}} (Works automatically when enabled)"
