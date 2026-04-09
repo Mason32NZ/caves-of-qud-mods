@@ -47,7 +47,6 @@ namespace M32_QoL
     public class MergedItemGroup
     {
         public string Blueprint;
-        public string DisplayName;
         public List<GameObject> SourceItems = new List<GameObject>();
         public int TotalCount => SourceItems.Sum(i => i?.Count ?? 0);
     }
@@ -63,7 +62,7 @@ namespace M32_QoL
 
         public override void Attach()
         {
-            UnityEngine.Debug.Log($"[M32_QoL] M32_ZoneTradePart attached to {ParentObject?.DisplayName}");
+            UnityEngine.Debug.Log($"[M32_QoL] M32_ZoneTradePart attached to {M32_Helpers.SafeGetName(ParentObject)}");
             base.Attach();
         }
 
@@ -418,7 +417,7 @@ namespace M32_QoL
                         }
                         catch (Exception ex)
                         {
-                            UnityEngine.Debug.LogError($"[M32_QoL] Failed to reconcile {item.DisplayNameStripped}: {ex.Message}");
+                            UnityEngine.Debug.LogError($"[M32_QoL] Failed to reconcile item: {ex.Message}");
                         }
                     }
                 }
@@ -450,53 +449,6 @@ namespace M32_QoL
             return _tradeEntryGoField?.GetValue(entry) as GameObject;
         }
 
-        private static bool CanStackForMerge(GameObject a, GameObject b)
-        {
-            if (a == null || b == null) return false;
-
-            // Never stack Data Disks (each has unique data)
-            if (a.Blueprint == "DataDisk" || b.Blueprint == "DataDisk") return false;
-
-            // Never stack Unidentified Artifacts (need to be identified first)
-            if (a.HasTag("Unidentified") || b.HasTag("Unidentified")) return false;
-
-            if (a.Blueprint != b.Blueprint) return false;
-            if (a.HasTag("Unique") || b.HasTag("Unique")) return false;
-
-            // Never stack items that have a cell (battery) in them
-            EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
-            EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
-            if ((socketA != null && socketA.Cell != null) || 
-                (socketB != null && socketB.Cell != null))
-                return false;
-
-            try
-            {
-                LiquidVolume volA = a.LiquidVolume;
-                LiquidVolume volB = b.LiquidVolume;
-                if (volA != null && volA.Volume > 0) return false;
-                if (volB != null && volB.Volume > 0) return false;
-
-                bool aHasMods = a.HasPart("Modification");
-                bool bHasMods = b.HasPart("Modification");
-                if (aHasMods != bHasMods) return false;
-
-                Inventory invA = a.GetPart<Inventory>();
-                Inventory invB = b.GetPart<Inventory>();
-                if (invA != null && invA.GetObjectCountDirect() > 0) return false;
-                if (invB != null && invB.GetObjectCountDirect() > 0) return false;
-
-                if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
-                    return false;
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static List<TradeEntry> MergeEntries(List<TradeEntry> entries, GameObject buyer)
         {
             if (entries == null || entries.Count == 0)
@@ -515,7 +467,7 @@ namespace M32_QoL
                     if (group.SourceItems.Count > 0)
                     {
                         GameObject groupObj = group.SourceItems[0];
-                        if (groupObj != null && CanStackForMerge(entryObj, groupObj))
+                        if (groupObj != null && M32_Helpers.CanStackForMerge(entryObj, groupObj))
                         {
                             group.SourceItems.Add(entryObj);
                             addedToGroup = true;
@@ -529,7 +481,6 @@ namespace M32_QoL
                     var newGroup = new MergedItemGroup
                     {
                         Blueprint = entryObj.Blueprint,
-                        DisplayName = entryObj.DisplayNameStripped,
                         SourceItems = new List<GameObject> { entryObj }
                     };
                     groups.Add(newGroup);
@@ -710,19 +661,20 @@ namespace M32_QoL
                         TradeUI.GetObjects(merchant, allEntries, Other, CostMultiple);
                     }
 
-                    // Sort entries alphabetically by display name (defensive sorting)
+                    // Sort entries by Blueprint for consistent grouping
+                    // Uses Blueprint instead of DisplayName to avoid triggering
+                    // the game's internal DescriptionBuilder sort bug
                     allEntries.Sort((a, b) => {
                         try
                         {
                             GameObject objA = GetTradeEntryObject(a);
                             GameObject objB = GetTradeEntryObject(b);
-                            string nameA = objA?.DisplayNameStripped ?? "";
-                            string nameB = objB?.DisplayNameStripped ?? "";
-                            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
+                            string bpA = objA?.Blueprint ?? "";
+                            string bpB = objB?.Blueprint ?? "";
+                            return string.Compare(bpA, bpB, StringComparison.OrdinalIgnoreCase);
                         }
                         catch
                         {
-                            // Maintain original order if comparison fails
                             return 0;
                         }
                     });

@@ -44,9 +44,21 @@ namespace M32_QoL
 M32_QoL/
 ├── manifest.json, Commands.xml, Options.xml
 ├── Options.cs, HarmonyInitializer.cs
+├── Helpers.cs
 ├── PlayerMutator.cs, LoadGameHandler.cs
 └── features/*.cs
 ```
+
+## Shared Functionality
+
+Any functionality that is shared across features should go in `Helpers.cs`. This includes:
+
+- `CanStackForMerge()` — item stacking comparison logic (used by StackedInventory and ZoneTrade)
+- `SameDisplayName()` — safe display name comparison that avoids DescriptionBuilder crash
+- `SafeGetName()` — safe display name retrieval for logging (avoids DescriptionBuilder crash)
+- `SortItemsByBlueprint()` — safe item sorting by Blueprint (avoids DescriptionBuilder crash)
+- `IsLiquidContainer()` — liquid container detection (MaxVolume >= 0)
+- `HaveSameTags()` — blueprint + runtime tag comparison
 
 ## Part Pattern
 
@@ -74,6 +86,7 @@ No build step — runtime-compiled. Test in-game:
 | Add keybind | `Commands.xml` |
 | Add part | Create in `features/` → Add to `PlayerMutator.cs` + `LoadGameHandler.cs` |
 | Add Harmony patch | Create patch class → `HarmonyInitializer.cs` applies via `PatchAll()` |
+| Add shared logic | Add to `Helpers.cs` (used across features) |
 | Debug errors | Check `Player.log` for exceptions |
 | Decompile game | `ilspy --assembly "Assembly-CSharp.dll" --output "temp/decompiled/"` |
 

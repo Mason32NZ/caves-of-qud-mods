@@ -16,174 +16,10 @@ namespace M32_QoL
     {
         private static int _lastRunTurn = -1;
         private static readonly object _executionLock = new object();
-        // Queue for deferred item removal to avoid modifying inventory during event processing
         private static readonly Queue<GameObject> _removalQueue = new Queue<GameObject>();
 
         /// <summary>
-        /// Checks if two items have identical tag sets.
-        /// Combines blueprint tags AND runtime Property tags.
-        /// </summary>
-        private static bool HaveSameTags(GameObject a, GameObject b)
-        {
-            // Get blueprint tags
-            var blueprintA = a?.GetBlueprint();
-            var blueprintB = b?.GetBlueprint();
-
-            // Collect all tag keys from both blueprint and runtime properties
-            var tagsA = new HashSet<string>();
-            var tagsB = new HashSet<string>();
-
-            // Blueprint tags
-            if (blueprintA?.Tags != null)
-                tagsA.UnionWith(blueprintA.Tags.Keys);
-            if (blueprintB?.Tags != null)
-                tagsB.UnionWith(blueprintB.Tags.Keys);
-
-            // Runtime properties (using reflection to access private _Property field)
-            var propA = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(a) as Dictionary<string, string>;
-            var propB = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(b) as Dictionary<string, string>;
-
-            if (propA != null)
-                tagsA.UnionWith(propA.Keys);
-            if (propB != null)
-                tagsB.UnionWith(propB.Keys);
-
-            // Check if tag key sets are identical
-            if (tagsA.Count != tagsB.Count)
-                return false;
-
-            return tagsA.SetEquals(tagsB);
-        }
-
-        /// <summary>
-        /// Safely compares display names of two items.
-        /// Falls back to Blueprint comparison if DisplayName throws
-        /// (avoids triggering the game's internal DescriptionBuilder sort bug).
-        /// </summary>
-        private static bool SameDisplayName(GameObject a, GameObject b)
-        {
-            try
-            {
-                return a.DisplayName == b.DisplayName;
-            }
-            catch
-            {
-                return a.Blueprint == b.Blueprint;
-            }
-        }
-
-        /// <summary>
-        /// Checks if two items can be stacked together.
-        /// Liquid containers stack by volume, composition, display name, and color.
-        /// Non-liquid items stack by Number property, tags, and deep SameAs comparison.
-        /// </summary>
-        public static bool CanStackForMerge(GameObject a, GameObject b)
-        {
-            if (a == null || b == null) return false;
-            if (a == b) return false;
-            if (a.Blueprint != b.Blueprint) return false;
-            if (a.HasTag("Unique") || b.HasTag("Unique")) return false;
-
-            // Never stack Data Disks (each has unique data)
-            if (a.Blueprint == "DataDisk" || b.Blueprint == "DataDisk") return false;
-
-            // Never stack Unidentified Artifacts
-            if (a.HasTag("Unidentified") || b.HasTag("Unidentified")) return false;
-
-            try
-            {
-                // Never stack items with a cell (battery) inserted in socket
-                EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
-                EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
-                if ((socketA != null && socketA.Cell != null) ||
-                    (socketB != null && socketB.Cell != null))
-                    return false;
-
-                // Liquid container stacking logic
-                LiquidVolume volA = a.LiquidVolume;
-                LiquidVolume volB = b.LiquidVolume;
-
-                if (volA != null || volB != null)
-                {
-                    // Both must be liquid containers
-                    if (volA == null || volB == null)
-                        return false;
-
-                    // Must have same volume
-                    if (volA.Volume != volB.Volume)
-                        return false;
-
-                    // Must have same liquid composition (if non-empty)
-                    if (volA.Volume > 0 && !volA.LiquidSameAs(volB))
-                        return false;
-
-                    // Must have same display name and render colors
-                    if (!SameDisplayName(a, b))
-                        return false;
-
-                    Render renderA = a.GetPart<Render>();
-                    Render renderB = b.GetPart<Render>();
-                    if (renderA?.ColorString != renderB?.ColorString)
-                        return false;
-                    if (renderA?.DetailColor != renderB?.DetailColor)
-                        return false;
-                }
-                else
-                {
-                    // Non-liquid items: check Number property, tags, then deep SameAs comparison
-                    if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
-                        return false;
-
-                    if (!HaveSameTags(a, b))
-                        return false;
-
-                    if (!a.SameAs(b))
-                        return false;
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Processes the deferred removal queue. Called from a safe context.
-        /// </summary>
-        private static void ProcessRemovalQueue()
-        {
-            if (_removalQueue.Count == 0) return;
-            
-            Inventory inv = The.Player?.GetPart<Inventory>();
-            if (inv == null) return;
-
-            int removed = 0;
-            while (_removalQueue.Count > 0)
-            {
-                GameObject item = _removalQueue.Dequeue();
-                if (item != null && item.InInventory == The.Player)
-                {
-                    try
-                    {
-                        inv.RemoveObject(item, null);
-                        removed++;
-                    }
-                    catch (Exception ex)
-                    {
-                        UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove item: {ex.Message}");
-                    }
-                }
-            }
-
-            if (removed > 0)
-                UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Removed {removed} merged items");
-        }
-
-        /// <summary>
         /// Consolidates compatible item stacks in the player's inventory.
-        /// Items are queued for removal and processed on the next safe tick.
         /// </summary>
         public static void StackInventory()
         {
@@ -192,15 +28,13 @@ namespace M32_QoL
 
             lock (_executionLock)
             {
-                // Only run once per game turn
                 int currentTurn = (int)(The.Game?.Turns ?? 0);
                 if (currentTurn == _lastRunTurn)
                 {
-                    // Process any pending removals from previous turn
                     ProcessRemovalQueue();
                     return;
                 }
-                
+
                 _lastRunTurn = currentTurn;
 
                 try
@@ -208,7 +42,6 @@ namespace M32_QoL
                     Inventory inv = The.Player?.GetPart<Inventory>();
                     if (inv == null) return;
 
-                    // Clear any stale items from queue
                     _removalQueue.Clear();
 
                     List<GameObject> items = inv.GetObjectsDirect()
@@ -217,10 +50,8 @@ namespace M32_QoL
 
                     if (items.Count < 2) return;
 
-                    // Sort items by blueprint for consistent grouping
-                    // Use Blueprint instead of DisplayName to avoid triggering
-                    // the game's internal DescriptionBuilder sort bug
-                    items = items.OrderBy(i => i?.Blueprint ?? "").ToList();
+                    // Sort by Blueprint for consistent grouping (avoids DisplayName crash)
+                    items = M32_Helpers.SortItemsByBlueprint(items);
 
                     // Group items by stack compatibility
                     List<List<GameObject>> groups = new List<List<GameObject>>();
@@ -232,7 +63,7 @@ namespace M32_QoL
                         bool addedToGroup = false;
                         foreach (var group in groups)
                         {
-                            if (group.Count > 0 && CanStackForMerge(item, group[0]))
+                            if (group.Count > 0 && M32_Helpers.CanStackForMerge(item, group[0]))
                             {
                                 group.Add(item);
                                 addedToGroup = true;
@@ -275,7 +106,6 @@ namespace M32_QoL
                         UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Merged {totalMerged} stacks, queued for removal");
                     }
 
-                    // Process removals immediately since we're outside of event handlers
                     ProcessRemovalQueue();
                 }
                 catch (Exception ex)
@@ -283,6 +113,35 @@ namespace M32_QoL
                     UnityEngine.Debug.LogError($"[M32_QoL] StackedInventory: Error during stack operation: {ex.Message}");
                 }
             }
+        }
+
+        private static void ProcessRemovalQueue()
+        {
+            if (_removalQueue.Count == 0) return;
+
+            Inventory inv = The.Player?.GetPart<Inventory>();
+            if (inv == null) return;
+
+            int removed = 0;
+            while (_removalQueue.Count > 0)
+            {
+                GameObject item = _removalQueue.Dequeue();
+                if (item != null && item.InInventory == The.Player)
+                {
+                    try
+                    {
+                        inv.RemoveObject(item, null);
+                        removed++;
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove item: {ex.Message}");
+                    }
+                }
+            }
+
+            if (removed > 0)
+                UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Removed {removed} merged items");
         }
     }
 
@@ -311,7 +170,6 @@ namespace M32_QoL
         [HarmonyPostfix]
         public static void Postfix()
         {
-            // Use a small delay to ensure we're outside of the event processing
             M32_StackedInventory.StackInventory();
         }
     }

@@ -80,7 +80,7 @@ namespace M32_QoL
 
         public override void Attach()
         {
-            UnityEngine.Debug.Log($"[M32_QoL] M32_AutoLootPart attached to {ParentObject?.DisplayName}");
+            UnityEngine.Debug.Log($"[M32_QoL] M32_AutoLootPart attached to {M32_Helpers.SafeGetName(ParentObject)}");
             base.Attach();
         }
 
@@ -250,7 +250,7 @@ namespace M32_QoL
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogWarning($"[M32_QoL] AutoLoot failed to pick up {item?.DisplayNameStripped}: {ex.Message}");
+                    UnityEngine.Debug.LogWarning($"[M32_QoL] AutoLoot failed to pick up {M32_Helpers.SafeGetName(item)}: {ex.Message}");
                 }
             }
 
@@ -287,11 +287,11 @@ namespace M32_QoL
                     containerInv.RemoveObject(item, null);
                     // Add to player's inventory directly
                     player.Inventory?.AddObject(item, null);
-                    UnityEngine.Debug.Log($"[M32_QoL] AutoLoot: Took {item.DisplayNameStripped} from {container.DisplayNameStripped}");
+                    UnityEngine.Debug.Log($"[M32_QoL] AutoLoot: Took {M32_Helpers.SafeGetName(item)} from {M32_Helpers.SafeGetName(container)}");
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogWarning($"[M32_QoL] AutoLoot failed to take {item?.DisplayNameStripped} from container: {ex.Message}");
+                    UnityEngine.Debug.LogWarning($"[M32_QoL] AutoLoot failed to take {M32_Helpers.SafeGetName(item)} from container: {ex.Message}");
                 }
             }
 
@@ -347,7 +347,7 @@ namespace M32_QoL
 
             // Always exclude invalid blueprint items (malformed/placeholder objects)
             // NOT bypassable by whitelist - these should never be picked up
-            string displayName = item.DisplayNameStripped;
+            string displayName = M32_Helpers.SafeGetName(item);
             if (!string.IsNullOrEmpty(displayName) && displayName.StartsWith("[invalid blueprint:"))
                 return false;
 
@@ -365,14 +365,15 @@ namespace M32_QoL
             // Check autoloot.json whitelist/blacklist (case-insensitive)
             bool skipCategoryFilters = false;
 
-            if (!string.IsNullOrEmpty(displayName) && Config != null)
+            string displayNameStripped = item.DisplayNameStripped;
+            if (!string.IsNullOrEmpty(displayNameStripped) && Config != null)
             {
                 // Deny list takes priority
-                if (Config.deny != null && Config.deny.Any(d => d.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
+                if (Config.deny != null && Config.deny.Any(d => d.Equals(displayNameStripped, StringComparison.OrdinalIgnoreCase)))
                     return false;
 
                 // Allow list bypasses category filters
-                if (Config.allow != null && Config.allow.Any(a => a.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
+                if (Config.allow != null && Config.allow.Any(a => a.Equals(displayNameStripped, StringComparison.OrdinalIgnoreCase)))
                     skipCategoryFilters = true;
             }
 
