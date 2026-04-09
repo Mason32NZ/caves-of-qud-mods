@@ -56,6 +56,32 @@ namespace M32_QoL
         }
 
         /// <summary>
+        /// Safely gets a display name for an item, falling back to Blueprint.
+        /// Avoids triggering the game's internal DescriptionBuilder sort bug.
+        /// </summary>
+        private static string SafeGetName(GameObject item)
+        {
+            try { return item.DisplayName ?? item.Blueprint ?? "null"; }
+            catch { return item.Blueprint ?? "null"; }
+        }
+
+        /// <summary>
+        /// Safely compares display names of two items.
+        /// Falls back to Blueprint comparison if DisplayName throws.
+        /// </summary>
+        private static bool SameDisplayName(GameObject a, GameObject b)
+        {
+            try
+            {
+                return a.DisplayName == b.DisplayName;
+            }
+            catch
+            {
+                return a.Blueprint == b.Blueprint;
+            }
+        }
+
+        /// <summary>
         /// Checks if two items can be stacked together.
         /// Only liquid containers can stack (if empty). Non-liquid containers never stack.
         /// Uses deep comparison via SameAs() for parts and properties.
@@ -78,47 +104,33 @@ namespace M32_QoL
                 // Never stack items that have a cell (battery) socket with cell inserted
                 EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
                 EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
+
                 if ((socketA != null && socketA.Cell != null) ||
                     (socketB != null && socketB.Cell != null))
+                {
                     return false;
+                }
 
-                // Check containers
+                // Check liquid containers
                 LiquidVolume volA = a.LiquidVolume;
                 LiquidVolume volB = b.LiquidVolume;
-                Inventory invA = a.GetPart<Inventory>();
-                Inventory invB = b.GetPart<Inventory>();
 
-                if (invA != null || invB != null)
+                if (volA != null || volB != null)
                 {
-                    bool aIsLiquidContainer = volA != null;
-                    bool bIsLiquidContainer = volB != null;
-
-                    bool aHasContents = invA != null && invA.GetObjectCountDirect() > 0;
-                    bool bHasContents = invB != null && invB.GetObjectCountDirect() > 0;
-
-                    // Non-liquid containers with items cannot stack
-                    if ((aHasContents && !aIsLiquidContainer) || (bHasContents && !bIsLiquidContainer)) return false;
-
-                    // Liquid containers with different liquids or amounts cannot stack
-                    if (volA != null && volB != null)
-                    {
-                        // Both are liquid containers - check if they have the same liquid and amount
-                        // If volumes differ, they cannot stack
-                        if (volA.Volume != volB.Volume)
-                            return false;
-
-                        // If both have liquid, check composition
-                        if (volA.Volume > 0 && !volA.LiquidSameAs(volB))
-                            return false;
-                    }
-                    else if (volA != null || volB != null)
-                    {
-                        // Only one is a liquid container - cannot stack
+                    // Both must be liquid containers
+                    if (volA == null || volB == null)
                         return false;
-                    }
+
+                    // Check if they have the same liquid and amount
+                    if (volA.Volume != volB.Volume)
+                        return false;
+
+                    // If both have liquid, check composition
+                    if (volA.Volume > 0 && !volA.LiquidSameAs(volB))
+                        return false;
 
                     // Containers must have same display name and colors to stack
-                    if (a.DisplayName != b.DisplayName)
+                    if (!SameDisplayName(a, b))
                         return false;
 
                     Render renderA = a.GetPart<Render>();
@@ -174,7 +186,7 @@ namespace M32_QoL
                     }
                     catch (Exception ex)
                     {
-                        UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove {item.DisplayNameStripped}: {ex.Message}");
+                        UnityEngine.Debug.LogWarning($"[M32_QoL] StackedInventory: Failed to remove item: {ex.Message}");
                     }
                 }
             }
@@ -219,20 +231,10 @@ namespace M32_QoL
 
                     if (items.Count < 2) return;
 
-                    // Sort items by display name to ensure consistent grouping (defensive sorting)
-                    items.Sort((a, b) => {
-                        try
-                        {
-                            string nameA = a?.DisplayNameStripped ?? "";
-                            string nameB = b?.DisplayNameStripped ?? "";
-                            return string.Compare(nameA, nameB, StringComparison.OrdinalIgnoreCase);
-                        }
-                        catch
-                        {
-                            // Maintain original order if comparison fails
-                            return 0;
-                        }
-                    });
+                    // Sort items by blueprint for consistent grouping
+                    // Use Blueprint instead of DisplayName to avoid triggering
+                    // the game's internal DescriptionBuilder sort bug
+                    items = items.OrderBy(i => i?.Blueprint ?? "").ToList();
 
                     // Group items by stack compatibility
                     List<List<GameObject>> groups = new List<List<GameObject>>();
