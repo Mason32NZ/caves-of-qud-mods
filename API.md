@@ -22,6 +22,10 @@
 | Modification part | `HasPart("Modification")` | **Wrong** — mods are separate parts (`ModSharp`, `ModHeavy`, etc.) |
 | DroppedByPlayer | Turn count | **Flag (value=1)** — track turn yourself |
 | LiquidVolume.MaxVolume < 0 | Container | **Puddle on ground** — not a container |
+| `GameObject.DisplayName` | Always safe | **Can throw** — triggers `DescriptionBuilder.descOrderComparison` which crashes on null dictionary keys. Wrap in try-catch or use `Blueprint` instead |
+| `GameObject.DisplayNameStripped` | Always safe | **Can throw** — same bug as `DisplayName` |
+| Waterskin has `Inventory` | Has container part | **No Inventory part** — only has `LiquidVolume`. Use `a.LiquidVolume != null` to detect liquid containers, NOT `a.GetPart<Inventory>()` |
+| `LiquidVolume.SameAs()` | Compares liquids | **Always returns false** — use `LiquidVolume.LiquidSameAs()` for liquid comparison |
 
 ---
 

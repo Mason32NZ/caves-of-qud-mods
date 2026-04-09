@@ -56,18 +56,9 @@ namespace M32_QoL
         }
 
         /// <summary>
-        /// Safely gets a display name for an item, falling back to Blueprint.
-        /// Avoids triggering the game's internal DescriptionBuilder sort bug.
-        /// </summary>
-        private static string SafeGetName(GameObject item)
-        {
-            try { return item.DisplayName ?? item.Blueprint ?? "null"; }
-            catch { return item.Blueprint ?? "null"; }
-        }
-
-        /// <summary>
         /// Safely compares display names of two items.
-        /// Falls back to Blueprint comparison if DisplayName throws.
+        /// Falls back to Blueprint comparison if DisplayName throws
+        /// (avoids triggering the game's internal DescriptionBuilder sort bug).
         /// </summary>
         private static bool SameDisplayName(GameObject a, GameObject b)
         {
@@ -83,8 +74,8 @@ namespace M32_QoL
 
         /// <summary>
         /// Checks if two items can be stacked together.
-        /// Only liquid containers can stack (if empty). Non-liquid containers never stack.
-        /// Uses deep comparison via SameAs() for parts and properties.
+        /// Liquid containers stack by volume, composition, display name, and color.
+        /// Non-liquid items stack by Number property, tags, and deep SameAs comparison.
         /// </summary>
         public static bool CanStackForMerge(GameObject a, GameObject b)
         {
@@ -101,17 +92,14 @@ namespace M32_QoL
 
             try
             {
-                // Never stack items that have a cell (battery) socket with cell inserted
+                // Never stack items with a cell (battery) inserted in socket
                 EnergyCellSocket socketA = a.GetPart<EnergyCellSocket>();
                 EnergyCellSocket socketB = b.GetPart<EnergyCellSocket>();
-
                 if ((socketA != null && socketA.Cell != null) ||
                     (socketB != null && socketB.Cell != null))
-                {
                     return false;
-                }
 
-                // Check liquid containers
+                // Liquid container stacking logic
                 LiquidVolume volA = a.LiquidVolume;
                 LiquidVolume volB = b.LiquidVolume;
 
@@ -121,15 +109,15 @@ namespace M32_QoL
                     if (volA == null || volB == null)
                         return false;
 
-                    // Check if they have the same liquid and amount
+                    // Must have same volume
                     if (volA.Volume != volB.Volume)
                         return false;
 
-                    // If both have liquid, check composition
+                    // Must have same liquid composition (if non-empty)
                     if (volA.Volume > 0 && !volA.LiquidSameAs(volB))
                         return false;
 
-                    // Containers must have same display name and colors to stack
+                    // Must have same display name and render colors
                     if (!SameDisplayName(a, b))
                         return false;
 
@@ -142,15 +130,13 @@ namespace M32_QoL
                 }
                 else
                 {
-                    // Check Number property (for numbered items like scrolls)
+                    // Non-liquid items: check Number property, tags, then deep SameAs comparison
                     if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
                         return false;
 
-                    // Check tags - items with different tag sets don't stack
                     if (!HaveSameTags(a, b))
                         return false;
 
-                    // DEEP COMPARISON: Use game's built-in SameAs for parts and properties
                     if (!a.SameAs(b))
                         return false;
                 }
