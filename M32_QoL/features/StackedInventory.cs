@@ -82,7 +82,7 @@ namespace M32_QoL
                     (socketB != null && socketB.Cell != null))
                     return false;
 
-                // Check containers - only LIQUID containers can stack (and must be empty)
+                // Check containers
                 LiquidVolume volA = a.LiquidVolume;
                 LiquidVolume volB = b.LiquidVolume;
                 Inventory invA = a.GetPart<Inventory>();
@@ -116,19 +116,32 @@ namespace M32_QoL
                         // Only one is a liquid container - cannot stack
                         return false;
                     }
+
+                    // Containers must have same display name and colors to stack
+                    if (a.DisplayName != b.DisplayName)
+                        return false;
+
+                    Render renderA = a.GetPart<Render>();
+                    Render renderB = b.GetPart<Render>();
+                    if (renderA?.ColorString != renderB?.ColorString)
+                        return false;
+                    if (renderA?.DetailColor != renderB?.DetailColor)
+                        return false;
                 }
+                else
+                {
+                    // Check Number property (for numbered items like scrolls)
+                    if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
+                        return false;
 
-                // Check Number property (for numbered items like scrolls)
-                if (a.GetIntProperty("Number") != b.GetIntProperty("Number"))
-                    return false;
+                    // Check tags - items with different tag sets don't stack
+                    if (!HaveSameTags(a, b))
+                        return false;
 
-                // Check tags - items with different tag sets don't stack
-                if (!HaveSameTags(a, b))
-                    return false;
-
-                // DEEP COMPARISON: Use game's built-in SameAs for parts and properties
-                if (!a.SameAs(b))
-                    return false;
+                    // DEEP COMPARISON: Use game's built-in SameAs for parts and properties
+                    if (!a.SameAs(b))
+                        return false;
+                }
 
                 return true;
             }
