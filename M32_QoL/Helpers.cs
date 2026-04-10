@@ -1,11 +1,72 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using XRL;
+using XRL.Core;
 using XRL.World;
 using XRL.World.Parts;
 
 namespace M32_QoL
 {
+    /// <summary>
+    /// Deferred removal command that processes inventory item removals
+    /// at the end of the current game segment, after all event processing
+    /// has completed. This avoids concurrent modification issues with
+    /// other mods that patch Inventory.WantEvent.
+    /// </summary>
+    public class M32_DeferredRemovalCommand : IActionCommand
+    {
+        private static readonly M32_DeferredRemovalCommand _instance = new M32_DeferredRemovalCommand();
+
+        private readonly List<string> _pendingItemIds = new List<string>();
+
+        public int Priority => 60000;
+
+        public static void ScheduleRemoval(GameObject item)
+        {
+            if (item == null) return;
+
+            _instance._pendingItemIds.Add(item.ID);
+            if (!The.ActionManager.HasAction<M32_DeferredRemovalCommand>())
+                The.ActionManager.EnqueueAction(_instance);
+        }
+
+        public void Execute(XRLGame Game, ActionManager Manager)
+        {
+            if (_pendingItemIds.Count == 0) return;
+
+            Inventory inv = The.Player?.GetPart<Inventory>();
+            if (inv == null)
+            {
+                _pendingItemIds.Clear();
+                return;
+            }
+
+            int removed = 0;
+            foreach (string itemId in _pendingItemIds)
+            {
+                GameObject item = GameObject.FindByID(itemId);
+                if (item == null) continue;
+                if (item.InInventory != The.Player) continue;
+
+                try
+                {
+                    inv.RemoveObject(item, null);
+                    removed++;
+                }
+                catch
+                {
+                    // Skip items that fail to remove
+                }
+            }
+
+            if (removed > 0)
+                UnityEngine.Debug.Log($"[M32_QoL] StackedInventory: Deferred removal of {removed} merged items");
+
+            _pendingItemIds.Clear();
+        }
+    }
+
     /// <summary>
     /// Shared helper methods used across M32_QoL features.
     /// Any functionality that is shared across features should go here.
