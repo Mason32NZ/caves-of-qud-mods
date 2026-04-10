@@ -2,7 +2,7 @@
 
 Quality of life improvements for Caves of Qud. Spend less time managing your inventory and looking for loot, and more time exploring the caves of Qud.
 
-**Trade with all** merchants at once, **auto loot** as you go, auto stack things for a **clean inventory**, and **consolidate liquids**!
+**Trade with all** merchants at once, **auto loot** as you go, auto stack things for a **clean inventory**, **consolidate liquids**, and **unload all ammo and cells** at once!
 
 ## Features
 
@@ -25,6 +25,17 @@ Merge liquids of the same type into their largest containers. Keeps your invento
 
 (Note: You must use the keybind while **NOT** in a menu or user interface for it to work)
 
+### Unload All `[Shift+U]`
+
+Unload all projectiles from ranged weapons and eject all energy cells from powered items in your inventory. Perfect for when you're about to sell your loot or want to consolidate your ammo and cells.
+
+- Unloads ammo (slugs, shells, arrows, rockets, etc.) from all unequipped ranged weapons
+- Ejects energy cells (batteries) from all unequipped powered items
+- Skips equipped items — your currently wielded weapons and worn gear stay loaded
+- Unloaded items go directly to your inventory
+
+(Note: You must use the keybind while **NOT** in a menu or user interface for it to work)
+
 ### Stacked Inventory `[Automatic]`
 
 Automatically stacks compatible items when you open your inventory or trade screen. Reduces scrolling and keeps similar items together.
@@ -42,10 +53,11 @@ Automatically picks up nearby items when you move. Highly configurable to fit yo
 
 - `Shift+T`: Open Zone Trade with nearby merchants
 - `Shift+L`: Consolidate liquids in inventory
+- `Shift+U`: Unload all ammo and cells from unequipped items
 
 ⚠️ You may need to **change your keybinds** if there are conflicts ⚠️
 
-Both keybinds are configurable in **Options → Controls → Control Mapping → Mod: M32's QoL**.
+All keybinds are configurable in **Options → Controls → Control Mapping → Mod: M32's QoL**.
 
 ## Compatibility
 

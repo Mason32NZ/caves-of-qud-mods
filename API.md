@@ -26,6 +26,7 @@
 | `GameObject.DisplayNameStripped` | Always safe | **Can throw** — same bug as `DisplayName` |
 | Waterskin has `Inventory` | Has container part | **No Inventory part** — only has `LiquidVolume`. Use `a.LiquidVolume != null` to detect liquid containers, NOT `a.GetPart<Inventory>()` |
 | `LiquidVolume.SameAs()` | Compares liquids | **Always returns false** — use `LiquidVolume.LiquidSameAs()` for liquid comparison |
+| Items with `MagazineAmmoLoader` | Only have ammo | **Also have `EnergyCellSocket`** — energy weapons like laser rifles have BOTH parts. Check both when processing items |
 
 ---
 
@@ -426,6 +427,7 @@ public static class MyMod_HarmonyInitializer
 2. **Return value modification > Reflection** — Change return values instead of calling methods via reflection
 3. **Call counters unreliable during init** — Methods may be called multiple times during setup
 4. **Virtual objects may be destroyed** — Use persistent dictionaries, not object references
+5. **Copy inventory before modifying** — `ReceiveObject()` modifies the inventory list while iterating. Use `new List<GameObject>(inv.GetObjectsDirect())` to iterate over a copy
 
 ### Patch Patterns
 

@@ -48,7 +48,15 @@
 - [x] Implement GetMixtureKey() with GCD normalization
 - [x] Implement PourLiquid() using Split() and MixWith()
 - [x] Add neutron flux exclusion
-- [x] Add Ctrl+L keybind
+- [x] Add Shift+L keybind
+
+### Unload All Feature
+- [x] Create UnloadAll.cs with M32_UnloadAllPart
+- [x] Add Shift+U keybind
+- [x] Unload ammo from MagazineAmmoLoader (slugs, arrows, etc.)
+- [x] Eject cells from EnergyCellSocket (batteries)
+- [x] Skip equipped items
+- [x] Copy inventory list to avoid concurrent modification issues
 
 ---
 
@@ -91,6 +99,14 @@ Merge same-type liquids into largest containers.
 - GCD-based ratio matching
 - Excludes neutron flux
 
+### Unload All `[Shift+U]`
+Unload all ammo from ranged weapons and eject all cells from powered items.
+
+- Unloads projectiles (slugs, shells, arrows, etc.) from MagazineAmmoLoader weapons
+- Ejects energy cells (batteries) from EnergyCellSocket items
+- Skips equipped items (weapons/items you're currently using)
+- Ammo and cells go directly to your inventory
+
 ---
 
 ## File Structure
@@ -109,6 +125,7 @@ M32_QoL/
     ├── AutoLoot.cs
     ├── ConsolidateLiquids.cs
     ├── StackedInventory.cs
+    ├── UnloadAll.cs
     └── ZoneTrade.cs
 ```
 
