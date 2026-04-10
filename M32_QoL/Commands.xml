@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <commands>
-    <command ID="M32QoL_ZoneTrade" DisplayText="Trade with Zone Merchants"
+    <command ID="M32QoL_ZoneTrade" DisplayText="Zone Trade"
              Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
         <keyboardBind Modifier="shift" Key="t"/>
     </command>
     <command ID="M32QoL_ConsolidateLiquids" DisplayText="Consolidate Liquids"
              Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
         <keyboardBind Modifier="shift" Key="l"/>
+    </command>
+    <command ID="M32QoL_UnloadAll" DisplayText="Unload All"
+             Category="Mod: M32's QoL" Layer="Adventure" Auto="Down">
+        <keyboardBind Modifier="shift" Key="u"/>
     </command>
 </commands>

@@ -11,6 +11,11 @@
         <helptext>When enabled, use the key bind to consolidate liquids of the same type into larger containers. Only uses the containers the liquids are already using for many reasons. Does not work if you are in the Inventory/Trade UI, use when you are in-game. Neutron flux is never consolidated to avoid dying under the weight of a thousand suns.</helptext>
     </option>
 
+    <option ID="Option_M32QoL_EnableUnloadAll" DisplayText="{{M|Feature: Unload All}} (Requires keybind to use)"
+            Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
+        <helptext>When enabled, use the key bind to unload all projectiles from ranged weapons and eject all energy cells from items in your inventory. Does not affect equipped items.</helptext>
+    </option>
+
     <option ID="Option_M32QoL_EnableStackedInventory" DisplayText="{{M|Feature: Stacked Inventory}} (Works automatically when enabled)"
             Category="Mod: M32's QoL" Type="Checkbox" Default="Yes">
         <helptext>When enabled, automatically merges compatible item stacks when opening inventory or trade. Only stacks items with identical properties, modifications, and appearance. Helps reduce unnecessary scrolling when looking at your inventory.</helptext>

@@ -21,6 +21,7 @@ namespace M32_QoL
             The.Player.RequirePart<M32_ZoneTradePart>();
             The.Player.RequirePart<M32_AutoLootPart>();
             The.Player.RequirePart<M32_ConsolidateLiquidsPart>();
+            The.Player.RequirePart<M32_UnloadAllPart>();
         }
     }
 }

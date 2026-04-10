@@ -22,6 +22,9 @@ namespace M32_QoL
         public static bool EnableConsolidateLiquids;
 
         [OptionFlag]
+        public static bool EnableUnloadAll;
+
+        [OptionFlag]
         public static bool AutoLootInCombat;
 
         [OptionFlag]
