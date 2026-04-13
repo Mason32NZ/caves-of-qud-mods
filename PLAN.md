@@ -24,7 +24,7 @@
 ### Stacked Inventory Feature
 - [x] Create StackedInventory.cs with stack merging logic
 - [x] Add EnableStackedInventory option
-- [x] Implement CanStackForMerge (only liquid containers can stack)
+- [x] Implement CanStackForMerge (never stack containers or liquid containers)
 - [x] Harmony patch for InventoryScreen.Show()
 - [x] Harmony patch for TradeScreen.Show() (Prefix, before Zone Trade)
 

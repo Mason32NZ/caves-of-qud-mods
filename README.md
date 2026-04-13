@@ -32,13 +32,14 @@ Unload all projectiles from ranged weapons and eject all energy cells from power
 - Unloads ammo (slugs, shells, arrows, rockets, etc.) from all unequipped ranged weapons
 - Ejects energy cells (batteries) from all unequipped powered items
 - Skips equipped items — your currently wielded weapons and worn gear stay loaded
-- Unloaded items go directly to your inventory
 
 (Note: You must use the keybind while **NOT** in a menu or user interface for it to work)
 
 ### Stacked Inventory `[Automatic]`
 
 Automatically stacks compatible items when you open your inventory or trade screen. Reduces scrolling and keeps similar items together.
+
+- Does not stack containers or liquid containers (to avoid weird bugs for now... might fix later)
 
 ### Auto Loot `[Automatic]`
 

@@ -53,7 +53,7 @@ M32_QoL/
 
 Any functionality that is shared across features should go in `Helpers.cs`. This includes:
 
-- `CanStackForMerge()` — item stacking comparison logic (used by StackedInventory and ZoneTrade)
+- `CanStackForMerge()` — item stacking comparison logic; never stacks containers or liquid containers (used by StackedInventory and ZoneTrade)
 - `SameDisplayName()` — safe display name comparison that avoids DescriptionBuilder crash
 - `SafeGetName()` — safe display name retrieval for logging (avoids DescriptionBuilder crash)
 - `SortItemsByBlueprint()` — safe item sorting by Blueprint (avoids DescriptionBuilder crash)
