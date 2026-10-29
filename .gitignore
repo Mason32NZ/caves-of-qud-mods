@@ -1,2 +1,6 @@
 # Ignore temp folder
 temp/
+
+# Ignore OpenCode
+.opencode/
+opencode.json
