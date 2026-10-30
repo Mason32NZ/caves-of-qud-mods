@@ -211,6 +211,14 @@ namespace M32_QoL
                 if (obj.IsPlayer()) continue;
                 if (!obj.IsCreature) continue;
 
+                // Companions, pets and other party members must never count as merchants.
+                // Zone Trade hands the primary merchant to the trade screen as the host: if
+                // that host is a party member the game treats the whole consolidated
+                // inventory as a party container (everything free), and when the host is a
+                // real merchant the player gets charged for items sitting on their own
+                // companions.
+                if (IsPlayerPartyMember(obj)) continue;
+
                 bool hasCommerce = obj.HasPart<Commerce>();
                 bool hasRepair = obj.GetPart<Tinkering_Repair>() != null;
                 bool hasRecharge = obj.HasSkill("Tinkering_Tinker1");
@@ -244,6 +252,33 @@ namespace M32_QoL
             }
 
             return merchants;
+        }
+
+        /// <summary>
+        /// True when the object is the player or follows the player (companions, pets,
+        /// proselytized NPCs, water ritual allies, followers left behind in a zone).
+        /// Party members are not merchants: TradeUI.ShowTradeScreen zeroes the cost
+        /// multiplier for any trader where IsPlayerLed() is true, so using one as the
+        /// host makes the entire consolidated inventory free.
+        /// </summary>
+        private static bool IsPlayerPartyMember(GameObject obj)
+        {
+            if (obj == null || The.Player == null)
+                return false;
+
+            if (obj == The.Player)
+                return true;
+
+            // The game's own "this trade is free" predicate (walks the party leader chain).
+            if (obj.IsPlayerLed())
+                return true;
+
+            // Also check the player's follower list, which covers followers whose
+            // leader link has not been re-established yet (zone change, save load).
+            if (The.Player.SupportsFollower(obj))
+                return true;
+
+            return false;
         }
 
         public static void CleanupVirtualItems()
