@@ -27,6 +27,7 @@
 | Waterskin has `Inventory` | Has container part | **No Inventory part** — only has `LiquidVolume`. Use `a.LiquidVolume != null` to detect liquid containers, NOT `a.GetPart<Inventory>()` |
 | `LiquidVolume.SameAs()` | Compares liquids | **Always returns false** — use `LiquidVolume.LiquidSameAs()` for liquid comparison |
 | Items with `MagazineAmmoLoader` | Only have ammo | **Also have `EnergyCellSocket`** — energy weapons like laser rifles have BOTH parts. Check both when processing items |
+| `GameObject._Property` field | `GetField("_Property")` | **It is now an `[Obsolete]` property wrapper** (build 2.0.211.x) — `GetField` returns null. Use the public, non-null `GameObject.Property` field (build 211.50+) |
 
 ---
 
@@ -338,6 +339,13 @@ if (!obj.IsPlayer() && obj.IsCreature &&
 // PREFERRED - Use TradeUI.ShowTradeScreen directly
 TradeUI.ShowTradeScreen(merchant, 1f, TradeUI.TradeScreenMode.Trade);
 ```
+
+### Party Members Are Free Trade Hosts
+
+`TradeUI.ShowTradeScreen` sets `costMultiple = 0f` when `Trader.IsPlayerLed()` is true, which makes
+every entry in a consolidated trade list free to take. Never let a companion, pet, proselytized NPC
+or water ritual ally become the trade host. `IsPlayerLed()` walks the whole party leader chain and
+also returns true for followers left behind in a zone.
 
 ### TradeEntry (Reflection Required)
 
