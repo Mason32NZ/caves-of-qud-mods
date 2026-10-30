@@ -137,9 +137,11 @@ namespace M32_QoL
             if (blueprintB?.Tags != null)
                 tagsB.UnionWith(blueprintB.Tags.Keys);
 
-            // Runtime properties (using reflection to access private _Property field)
-            var propA = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(a) as Dictionary<string, string>;
-            var propB = typeof(GameObject).GetField("_Property", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(b) as Dictionary<string, string>;
+            // Runtime properties. GameObject.Property is public and never null (build 211.50+).
+            // Do NOT reflect on "_Property": it is now an [Obsolete] property wrapper, so
+            // GetField("_Property") returns null and the comparison silently degrades.
+            var propA = a?.Property;
+            var propB = b?.Property;
 
             if (propA != null)
                 tagsA.UnionWith(propA.Keys);
